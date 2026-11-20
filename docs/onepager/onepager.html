@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=block" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0f17; --panel: #121826; --panel2: #171f30; --line: #243049;
+  --text: #e8edf6; --muted: #8b97ad; --dim: #5d6a82;
+  --us: #4ea1ff; --them: #ff6470; --ok: #35c98b; --part: #f2b23d; --no: #ff6470; --na: #6b778d;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { width: 1200px; height: 1600px; background: var(--bg); color: var(--text); font-family: Inter, sans-serif; padding: 56px 60px 44px; overflow: hidden; }
+.mono { font-family: "JetBrains Mono", monospace; }
+header { display: flex; justify-content: space-between; align-items: flex-end; }
+.brand { font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.brand b { color: var(--text); }
+h1 { font-size: 64px; font-weight: 800; letter-spacing: -.03em; line-height: 1.02; margin-top: 14px; }
+h1 span { color: var(--us); }
+.lede { font-size: 20px; color: var(--muted); line-height: 1.5; margin-top: 18px; max-width: 820px; }
+.lede b { color: var(--text); font-weight: 600; }
+.tag { font-size: 12px; color: var(--dim); text-align: right; line-height: 1.6; }
+
+.loop { display: flex; align-items: center; gap: 0; margin-top: 34px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; }
+.step { flex: 1; display: flex; gap: 12px; align-items: center; }
+.num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); flex: none; }
+.step.hot .num { background: var(--us); border-color: var(--us); color: #06101f; }
+.step h4 { font-size: 15px; font-weight: 700; }
+.step p { font-size: 12.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+.arrow { color: var(--dim); font-size: 18px; padding: 0 10px; }
+
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px 22px 18px; }
+.ph { display: flex; justify-content: space-between; align-items: baseline; }
+.ph h2 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.ph .when { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; font-weight: 600; }
+.q { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+.draft { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 16px; font-size: 12.5px; }
+.team { display: flex; gap: 5px; flex-wrap: wrap; }
+.team.r { justify-content: flex-end; }
+.ch { padding: 4px 8px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line); }
+.team.b .ch { border-color: #2a4c78; }
+.team.r .ch { border-color: #6e2c36; }
+.vs { color: var(--dim); font-size: 11px; font-weight: 700; }
+
+.chart { margin-top: 14px; background: var(--panel2); border-radius: 10px; padding: 10px 10px 4px; }
+.chart .cl { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; padding: 0 4px 2px; }
+
+.items { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.item { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: start; }
+.type { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 3px 0; text-align: center; margin-top: 1px; }
+.item .t { font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.item .e { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+.item .e b { color: var(--muted); font-weight: 600; }
+
+.score { display: flex; align-items: center; gap: 16px; margin-top: 16px; background: var(--panel2); border-radius: 10px; padding: 12px 14px; }
+.score .big { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.score .big small { font-size: 15px; color: var(--muted); font-weight: 600; }
+.bar { flex: 1; display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 3px; }
+.bar i { display: block; }
+
+.v { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: start; }
+.chip { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 4px 0; text-align: center; margin-top: 1px; }
+.chip.ok { background: rgba(53,201,139,.14); color: var(--ok); }
+.chip.part { background: rgba(242,178,61,.14); color: var(--part); }
+.chip.no { background: rgba(255,100,112,.14); color: var(--no); }
+.v .t { font-size: 13px; font-weight: 600; }
+.v .e { font-size: 11.5px; color: var(--muted); margin-top: 3px; font-family: "JetBrains Mono", monospace; line-height: 1.45; }
+.v .e .play { color: var(--us); }
+
+.revlow { display: grid; grid-template-columns: 196px 1fr; gap: 12px; margin-top: 12px; }
+.mm { background: var(--panel2); border-radius: 10px; padding: 8px; }
+.mm .cap { font-size: 10.5px; color: var(--muted); margin-top: 5px; text-align: center; }
+.moments { background: var(--panel2); border-radius: 10px; padding: 10px 12px; }
+.moments h5 { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 700; }
+.m { display: grid; grid-template-columns: 42px 1fr; gap: 8px; font-size: 12px; margin-top: 8px; line-height: 1.35; }
+.m .tm { font-family: "JetBrains Mono", monospace; color: var(--dim); }
+.m b { font-weight: 600; }
+.good { color: var(--ok); } .bad { color: var(--no); }
+
+.pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 22px; }
+.pillar { border-top: 2px solid var(--line); padding-top: 14px; }
+.pillar h3 { font-size: 16px; font-weight: 700; }
+.pillar p { font-size: 13.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.pillar .k { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--us); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+.actions { display: flex; gap: 8px; margin-top: 14px; } .actions span { flex: 1; text-align: center; font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 9px 0; }
+.note { font-size: 12.5px; color: var(--dim); line-height: 1.5; margin-top: 14px; }
+footer { display: flex; justify-content: space-between; margin-top: 26px; font-size: 11.5px; color: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand"><b>Throughline</b> &nbsp;·&nbsp; LoL coaching tool</div>
+    <h1>Did we play<br><span>our draft?</span></h1>
+    <p class="lede">A draft is a set of promises. Throughline <b>writes them down as a checkable game plan</b> before the game, then <b>checks the played game against it</b>, with the evidence and a replay clip for every verdict.</p>
+  </div>
+  <div class="tag">Cloud9 x JetBrains<br>Sky's the Limit 2026<br>Category 2: Macro &amp; Draft</div>
+</header>
+
+<div class="loop">
+  <div class="step"><div class="num">1</div><div><h4>Draft</h4><p>Ten picks, roles</p></div></div>
+  <div class="arrow">→</div>
+  <div class="step hot"><div class="num">2</div><div><h4>Plan</h4><p>4 to 8 checkable items</p></div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="num">3</div><div><h4>Game</h4><p>Played on stage</p></div></div>
+  <div class="arrow">→</div>
+  <div class="step hot"><div class="num">4</div><div><h4>Review</h4><p>Every item checked</p></div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="num">5</div><div><h4>Debrief</h4><p>Confirm, note, share</p></div></div>
+</div>
+
+<div class="cols">
+  <!-- PLAN -->
+  <section class="panel">
+    <div class="ph"><h2>The Plan</h2><span class="when">Before the game</span></div>
+    <p class="q">Read in under a minute in the pre-game talk.</p>
+
+    <div class="draft">
+      <div class="team b"><span class="ch">Rumble</span><span class="ch">Xin Zhao</span><span class="ch">Orianna</span><span class="ch">Varus</span><span class="ch">Rell</span></div>
+      <div class="vs">VS</div>
+      <div class="team r"><span class="ch">Gnar</span><span class="ch">Vi</span><span class="ch">Ahri</span><span class="ch">Kai'Sa</span><span class="ch">Nautilus</span></div>
+    </div>
+
+    <div class="chart">
+      <div class="cl"><span>Draft tempo: who the draft favours, minute by minute</span><span class="mono">0 to 30 min</span></div>
+      <svg width="510" height="138" viewBox="0 0 510 138">
+        <rect x="203" y="8" width="100" height="112" fill="#ff6470" opacity=".10"/>
+        <rect x="303" y="8" width="100" height="112" fill="#4ea1ff" opacity=".12"/>
+        <text x="253" y="22" fill="#ff8a93" font-size="10.5" font-family="Inter" font-weight="600" text-anchor="middle">their window</text>
+        <text x="353" y="22" fill="#7cb9ff" font-size="10.5" font-family="Inter" font-weight="600" text-anchor="middle">our window</text>
+        <line x1="5" y1="66" x2="505" y2="66" stroke="#2c3954" stroke-dasharray="3 4"/>
+        <text x="8" y="40" fill="#5d6a82" font-size="10" font-family="Inter">us</text>
+        <text x="8" y="100" fill="#5d6a82" font-size="10" font-family="Inter">them</text>
+        <path d="M5 66 C 40 60, 60 52, 87 52 S 140 54, 170 60 S 220 84, 253 90 S 290 80, 303 66 S 330 38, 353 36 S 390 50, 403 58 S 460 72, 505 74" fill="none" stroke="#e8edf6" stroke-width="2.4" stroke-linecap="round"/>
+        <g font-family="JetBrains Mono" font-size="9.5" fill="#8b97ad" text-anchor="middle">
+          <line x1="87" y1="8" x2="87" y2="120" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <circle cx="87" cy="114" r="4" fill="#8b5cf6"/>
+          <text x="83" y="133" text-anchor="end">dragon 4:54</text>
+          <line x1="110" y1="8" x2="110" y2="120" stroke="#ff6470" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <path d="M110 108 l5 8 h-10 z" fill="#ff6470"/>
+          <text x="115" y="133" text-anchor="start">Ahri 6 · 6:20</text>
+          <line x1="332" y1="8" x2="332" y2="120" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="2 3"/>
+          <circle cx="332" cy="114" r="4" fill="#8b5cf6"/>
+          <text x="332" y="133">baron 19:40</text>
+          <text x="403" y="133">24</text><text x="500" y="133">30</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="items">
+      <div class="item"><span class="type">objective</span><div><div class="t">Contest first dragon (4:54): 3+ near the pit by 4:34, grouped there before them.</div><div class="e">Bot and mid priority, our tempo at spawn · <b>212 games</b></div></div></div>
+      <div class="item"><span class="type">lane</span><div><div class="t">Bot has priority to 8:00: play for plates.</div><div class="e">Varus + Rell vs Kai'Sa + Nautilus, +410 gold at 10 · <b>64 games</b></div></div></div>
+      <div class="item"><span class="type">spike</span><div><div class="t">Their Ahri hits 6 near 6:20: no mid trades without jungle near.</div><div class="e">Median 6:18, +350 gold for her team in the 3 min after · <b>412 games</b></div></div></div>
+      <div class="item"><span class="type">window</span><div><div class="t">Their window 12:00-18:00: avoid even fights.</div><div class="e">Draft tempo below threshold · <b>Vi, Ahri, Gnar curves</b></div></div></div>
+      <div class="item"><span class="type">window</span><div><div class="t">Our window 18:00-24:00: force fights and the 19:40 baron.</div><div class="e">Rumble, Orianna, Varus curves peak · <b>season spawn times</b></div></div></div>
+    </div>
+    <div class="actions"><span>✎ Edit, add or remove items</span><span>⧉ Share link</span><span>⇪ Export to Discord</span></div>
+    <p class="note">Plans only use games played before the draft, so on any pro game you can see the plan its draft implied, then whether the team played it.</p>
+  </section>
+
+  <!-- REVIEW -->
+  <section class="panel">
+    <div class="ph"><h2>The Review</h2><span class="when">After the game</span></div>
+    <p class="q">Which promises did the team keep, and where did it go wrong?</p>
+
+    <div class="score">
+      <div class="big">3 of 5 <small>followed · 1 partly · 1 not</small></div>
+      <div class="bar"><i style="flex:3;background:var(--ok)"></i><i style="flex:1;background:var(--part)"></i><i style="flex:1;background:var(--no)"></i></div>
+    </div>
+
+    <div class="items">
+      <div class="item v"><span class="chip ok">FOLLOWED</span><div><div class="t">Contest first dragon</div><div class="e">4 of 5 near the pit at 4:34; grouped 4:02, before them (4:21); took it 5:31 <span class="play">▶ clip</span></div></div></div>
+      <div class="item v"><span class="chip part">PARTLY</span><div><div class="t">Bot priority to 8:00</div><div class="e">1 plate by 8:00 (plan: 2+); +240 gold in lane <span class="play">▶ clip</span></div></div></div>
+      <div class="item v"><span class="chip no">NOT FOLLOWED</span><div><div class="t">Respect Ahri's level 6</div><div class="e">Orianna died mid at 6:48, Xin Zhao 4,200 units away <span class="play">▶ clip</span></div></div></div>
+      <div class="item v"><span class="chip ok">FOLLOWED</span><div><div class="t">Avoid even fights 12:00-18:00</div><div class="e">1 fight taken, 4v3 on their jungler, won <span class="play">▶ clip</span></div></div></div>
+      <div class="item v"><span class="chip ok">FOLLOWED</span><div><div class="t">Force fights and baron 18:00-24:00</div><div class="e">3 fights forced, 2 won; baron at 20:12 <span class="play">▶ clip</span></div></div></div>
+    </div>
+
+    <div class="revlow">
+      <div class="mm">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <rect width="180" height="180" rx="6" fill="#0e1522"/>
+          <path d="M0 30 L30 0 L180 150 L150 180 Z" fill="#132034"/>
+          <path d="M14 166 L14 20 M14 166 L160 166" stroke="#22304a" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path d="M166 14 L20 14 M166 14 L166 160" stroke="#22304a" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path d="M8 172 L172 8" stroke="#1d3a5f" stroke-width="13" stroke-linecap="round"/>
+          <path d="M18 162 L162 18" stroke="#22304a" stroke-width="8" stroke-linecap="round"/>
+          <circle cx="121" cy="122" r="13" fill="none" stroke="#8b5cf6" stroke-width="1.6" stroke-dasharray="3 3"/>
+          <circle cx="121" cy="122" r="3" fill="#8b5cf6"/>
+          <g fill="#4ea1ff" stroke="#0e1522" stroke-width="1.5">
+            <circle cx="106" cy="128" r="6.5"/><circle cx="112" cy="140" r="6.5"/><circle cx="100" cy="116" r="6.5"/><circle cx="124" cy="141" r="6.5"/>
+            <circle cx="32" cy="40" r="6.5" opacity=".55"/>
+          </g>
+          <g fill="#ff6470" stroke="#0e1522" stroke-width="1.5">
+            <circle cx="140" cy="100" r="6.5"/><circle cx="150" cy="80" r="6.5"/><circle cx="96" cy="84" r="6.5"/>
+          </g>
+          <path d="M150 80 L146 88 L140 100" stroke="#ff6470" stroke-width="1.5" opacity=".5" fill="none"/>
+        </svg>
+        <div class="cap mono">4:34 · 4 of 5 at the pit</div>
+      </div>
+      <div class="moments">
+        <h5>Macro moments the plan did not cover</h5>
+        <div class="m"><span class="tm">9:12</span><span><b class="bad">Unused advantage</b>: 2 kills bot, then 60 s with no objective or structure</span></div>
+        <div class="m"><span class="tm">14:40</span><span><b class="bad">Caught before an objective</b>: Varus alone top side, 70 s before grubs</span></div>
+        <div class="m"><span class="tm">16:05</span><span><b class="good">Cross-map trade</b>: their herald for our two bot towers, +1,100 gold</span></div>
+        <div class="m"><span class="tm">22:30</span><span><b class="good">Gold swing</b>: +2,300 in 50 s, triggered by the baron fight</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="pillars">
+  <div class="pillar"><div class="k">Grounded</div><h3>Every line counted from pro games</h3><p>Built from 1,738 official pro games of GRID data. No generated text: each item is a template filled from data, with the number of games behind it.</p></div>
+  <div class="pillar"><div class="k">Checkable</div><h3>Typed items the review can verify</h3><p>Objective, concede, lane, window, spike and side items are checked from player positions, objective spawns, plates, fights and gold, not from a VOD scrub.</p></div>
+  <div class="pillar"><div class="k">Honest</div><h3>Does following the plan win?</h3><p>Plans built only from earlier games, checked on every game after, and win rate compared by adherence at equal gold. The result is reported either way.</p></div>
+</div>
+
+<footer><span>Illustrative example: champions, numbers and verdicts show the format, not a real game.</span><span>Built with JetBrains Junie · PyCharm · WebStorm</span></footer>
+</body>
+</html>
