@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+import json
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import typer
@@ -12,6 +13,8 @@ from throughline.knowledge.features import participant_features
 from throughline.knowledge.items import fetch_item_jsons, legendary_item_names
 from throughline.settings import Settings
 from throughline.store.analytics import AnalyticsStore
+from throughline.synthetic import OFFLINE_LEGENDARY, synthetic_games
+from throughline.validation.backtest import run_backtest, summarize
 
 app = typer.Typer(no_args_is_help=True)
 grid_app = typer.Typer(no_args_is_help=True)
@@ -57,14 +60,41 @@ def _patches(store: AnalyticsStore) -> list[str]:
 
 
 @app.command()
-def build() -> None:
-    """Compute participant features for every stored game."""
+def seed(games: int = 300) -> None:
+    """Fill the analytics database with a synthetic league (no GRID data needed)."""
     settings = Settings.from_env()
     store = AnalyticsStore(settings.analytics_db)
     store.init_schema()
-    legendary = legendary_item_names(fetch_item_jsons(_patches(store), settings.data_dir / "ddragon"))
+    for n, game in enumerate(synthetic_games(games), start=1):
+        store.write_game(game)
+        if n % 50 == 0 or n == games:
+            typer.echo(f"{n}/{games} games")
+
+
+@app.command()
+def build(offline: bool = False) -> None:
+    """Compute participant features for every stored game. --offline skips Data Dragon (synthetic data)."""
+    settings = Settings.from_env()
+    store = AnalyticsStore(settings.analytics_db)
+    store.init_schema()
+    if offline:
+        legendary = OFFLINE_LEGENDARY
+    else:
+        legendary = legendary_item_names(fetch_item_jsons(_patches(store), settings.data_dir / "ddragon"))
     ids = store.game_ids_by_time()
     for n, game_id in enumerate(ids, start=1):
         store.write_features(game_id, participant_features(store.load_game(game_id), legendary))
         if n % 50 == 0 or n == len(ids):
             typer.echo(f"{n}/{len(ids)} games")
+
+
+@app.command()
+def validate(holdout_from: str = "2026-06-01") -> None:
+    """Backtest plans using only earlier games, then write data/validation.json."""
+    settings = Settings.from_env()
+    store = AnalyticsStore(settings.analytics_db)
+    sides, checks = run_backtest(store)
+    report = summarize(sides, checks, datetime.fromisoformat(holdout_from).replace(tzinfo=UTC))
+    out = settings.data_dir / "validation.json"
+    out.write_text(json.dumps(report, indent=2))
+    typer.echo(f"wrote {out}: {report['sides']} sides in the holdout")
