@@ -117,3 +117,13 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in PyCharm.
 - What worked: Implemented `synthetic.py`, `throughline seed`, `throughline build --offline`, static SPA fallback in `create_app`, `Dockerfile`, `scripts/start.sh`, and `.dockerignore`.
 - What had to be fixed: Replaced a bare lane string tuple with `LANES` in `synthetic.py` to satisfy strict mypy.
+
+## 2026-11-24 - Task 23 (Step 5): real-data validation run
+- Tool: Junie orchestrator running `throughline validate --holdout-from 2025-08-20` on the 1,738-game DuckDB.
+- What worked: Evaluated 587 holdout sides; win rate rises from 35.8% in the 0-25% adherence quartile (106 sides) to 55.0% in the 75-100% quartile (149 sides), with +20.4 pp gold-adjusted lift on `window` items and +8.8 pp on `lane` items.
+- What had to be fixed: Nothing; documented honest negative/sparse findings on `concede` (-4.9 pp adjusted) and `objective` (1 followed vs 247 not followed under strict 20 s pre-spawn setup criteria) for `docs/methodology.md`.
+
+## 2026-11-24 - Task 25: end-to-end test and polish pass
+- Tool: Junie (standard-tier subagent) in WebStorm + Playwright.
+- What worked: Added `scripts/e2e-backend.sh`, `frontend/playwright.config.ts`, `frontend/e2e/loop.spec.ts`, and the `e2e` job in `.github/workflows/ci.yml`; both end-to-end tests passed, responsive overflow fixes landed across Draft/Plan/Review pages, and 5 screenshots were captured into `docs/screenshots/`.
+- What had to be fixed: Made the E2E API port configurable via `TL_E2E_PORT` (defaulting to 8000 for CI) to avoid colliding with a local service on port 8000, switched `vite.config.ts` to Vite's `loadEnv` so strict TypeScript compiles without `@types/node`, and added optional `PLAYWRIGHT_CHANNEL` so local runs on Node 26 can use installed Chrome while CI uses bundled Chromium.

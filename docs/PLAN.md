@@ -9086,7 +9086,7 @@ git commit -m "feat: synthetic league, static frontend serving and container dep
 **Interfaces:**
 - Consumes: the whole app on the synthetic league.
 
-- [ ] **Step 1: Backend script for e2e**
+- [x] **Step 1: Backend script for e2e**
 
 `scripts/e2e-backend.sh` (executable):
 
@@ -9100,7 +9100,7 @@ uv run throughline build --offline
 exec uv run uvicorn throughline.api.main:app --port 8000
 ```
 
-- [ ] **Step 2: Playwright config and the test**
+- [x] **Step 2: Playwright config and the test**
 
 `frontend/playwright.config.ts`:
 
@@ -9156,12 +9156,12 @@ test("a read-only review link shows notes but no controls", async ({ page, brows
 
 Add a CI job `e2e` (needs both setups, runs `npx playwright install --with-deps chromium` then `npm run e2e` in `frontend/`).
 
-- [ ] **Step 3: Run it**
+- [x] **Step 3: Run it**
 
 Run: `cd frontend && npx playwright install chromium && npm run e2e`
 Expected: 2 passed. Fix any flakiness at its cause (a missing wait on data, not a longer timeout).
 
-- [ ] **Step 4: Polish pass**
+- [x] **Step 4: Polish pass**
 
 Go through every page at 1440, 1024 and 375 px wide, in the browser, against this list, and fix everything that fails:
 - No horizontal scroll; nothing clipped; tap targets at least 32 px on phones.
@@ -9172,7 +9172,7 @@ Go through every page at 1440, 1024 and 375 px wide, in the browser, against thi
 - The footer notice is on every page.
 Screenshot each page at desktop and phone width into `docs/screenshots/` for the README.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A
