@@ -8,6 +8,8 @@ import typer
 from throughline.grid.census import census, census_markdown
 from throughline.grid.ingest import ingest as run_ingest
 from throughline.grid.source import read_lines, read_series_index
+from throughline.knowledge.features import participant_features
+from throughline.knowledge.items import fetch_item_jsons, legendary_item_names
 from throughline.settings import Settings
 from throughline.store.analytics import AnalyticsStore
 
@@ -48,3 +50,21 @@ def ingest(event: str | None = None, since: str | None = None) -> None:
     typer.echo(f"added {report.added} games, skipped {skipped} known series, failed {failed}")
     for key, error in report.failed:
         typer.echo(f"  {key}: {error}")
+
+
+def _patches(store: AnalyticsStore) -> list[str]:
+    return [str(r[0]) for r in store.con.execute("SELECT DISTINCT patch FROM games").fetchall()]
+
+
+@app.command()
+def build() -> None:
+    """Compute participant features for every stored game."""
+    settings = Settings.from_env()
+    store = AnalyticsStore(settings.analytics_db)
+    store.init_schema()
+    legendary = legendary_item_names(fetch_item_jsons(_patches(store), settings.data_dir / "ddragon"))
+    ids = store.game_ids_by_time()
+    for n, game_id in enumerate(ids, start=1):
+        store.write_features(game_id, participant_features(store.load_game(game_id), legendary))
+        if n % 50 == 0 or n == len(ids):
+            typer.echo(f"{n}/{len(ids)} games")

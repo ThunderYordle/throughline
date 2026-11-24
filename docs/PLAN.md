@@ -4401,7 +4401,7 @@ git commit -m "feat(frontend): app shell, games list and canvas replay player"
   - `AnalyticsStore.write_features(game_id, rows)`.
   - CLI: `throughline build`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/knowledge/__init__.py`: empty.
 
@@ -4501,12 +4501,12 @@ def test_feature_spawns_come_from_the_feed_when_present() -> None:
     assert (row.dragon_spawn, row.baron_spawn, row.grubs_spawn) == (294.0, 1180.0, None)
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/knowledge -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement items**
+- [x] **Step 3: Implement items**
 
 The feed names items in English and has no item ids, so legendaries are matched by name, across the Data Dragon versions of every patch in the data (an item can be renamed or removed between patches).
 On the real data, 1 purchase in 484,849 had no Data Dragon name.
@@ -4574,7 +4574,7 @@ def fetch_item_jsons(
     return out
 ```
 
-- [ ] **Step 4: Implement features**
+- [x] **Step 4: Implement features**
 
 `backend/throughline/knowledge/features.py`:
 
@@ -4690,7 +4690,7 @@ def participant_features(game: Game, legendary: set[str]) -> list[ParticipantFea
     return rows
 ```
 
-- [ ] **Step 5: Store the features**
+- [x] **Step 5: Store the features**
 
 Append to `SCHEMA_SQL` in `backend/throughline/store/analytics.py`:
 
@@ -4737,7 +4737,7 @@ def test_write_features(tmp_path: Path) -> None:
     assert row == (10, 0, None)
 ```
 
-- [ ] **Step 6: The build command**
+- [x] **Step 6: The build command**
 
 Add to `backend/throughline/cli.py`:
 
@@ -4764,12 +4764,12 @@ def build() -> None:
             typer.echo(f"{n}/{len(ids)} games")
 ```
 
-- [ ] **Step 7: Run all tests, lint and types; build on real data**
+- [x] **Step 7: Run all tests, lint and types; build on real data**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check . && uv run throughline build`
 Expected: all pass; `build` reports every game in about 30 seconds; on the real data, 99.9% of players have a first legendary (median 12:36) and a level-6 time (median 6:51). Spot-check in DataGrip: `SELECT champion, count(*), avg(gd15) FROM participant_features GROUP BY 1 ORDER BY 2 DESC LIMIT 20` (save the query as a DataGrip scratch for the build log).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add backend
@@ -6283,7 +6283,7 @@ git commit -m "feat(api): plans from a draft or a game, edits behind a token, ma
   - `saveToken(kind: "plan" | "review", id, token)`, `getToken(kind, id): string | undefined`, `takeTokenFromHash(kind, id): void` (reads `#t=...`, stores it, clears the hash).
   - Routes: `/plan/new`, `/plan/from-game/:gameId`, `/plan/:id`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `frontend/src/lib/exportPlan.test.ts`:
 
@@ -6357,12 +6357,12 @@ describe("tokens", () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd frontend && npm test`
 Expected: FAIL (modules not found)
 
-- [ ] **Step 3: Types and API**
+- [x] **Step 3: Types and API**
 
 Append to `frontend/src/types.ts`:
 
@@ -6438,7 +6438,7 @@ Add to `api` in `frontend/src/api.ts`:
 
 with `const JSON_HEADERS = { "Content-Type": "application/json" };` and the new type imports.
 
-- [ ] **Step 4: Export and tokens**
+- [x] **Step 4: Export and tokens**
 
 `frontend/src/lib/exportPlan.ts`:
 
@@ -6493,12 +6493,12 @@ export function takeTokenFromHash(kind: Kind, id: string): void {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd frontend && npm test`
 Expected: all pass.
 
-- [ ] **Step 6: Components and pages**
+- [x] **Step 6: Components and pages**
 
 `frontend/src/components/ChampionPicker.tsx`:
 
@@ -6821,12 +6821,12 @@ Add routes to `frontend/src/App.tsx`:
 <Route path="/plan/from-game/:gameId" element={<PlanFromGamePage />} />
 <Route path="/plan/:id" element={<PlanPage />} />
 ```
-- [ ] **Step 7: Check it in the browser**
+- [x] **Step 7: Check it in the browser**
 
 With the API and dev server running, build a plan from the draft page and from a game on the home page.
 Expected: icons resolve for every champion (fix the Data Dragon name map for any that do not, with a test in `ddragon`); items read in time order; edit and remove persist after reload; the read-only link opened in a private window shows no edit buttons; Copy for Discord pastes the text from the test; the page holds at 375 px.
 
-- [ ] **Step 8: Lint, types, tests, build; commit**
+- [x] **Step 8: Lint, types, tests, build; commit**
 
 Run: `cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
 
@@ -6846,7 +6846,7 @@ git commit -m "feat(frontend): draft entry, plan page, edits and Discord export"
 - Consumes: `Plan.tempo`, `Plan.windows`, `Plan.items` (spikes, objectives).
 - Produces: `tempoScale(points, width, height) -> { x(seconds): number; y(gold): number; maxGold: number }`, `<TempoChart plan={plan} />`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `frontend/src/components/tempoScale.test.ts`:
 
@@ -6867,12 +6867,12 @@ describe("tempoScale", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd frontend && npm test`
 Expected: FAIL (module not found)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `frontend/src/components/tempoScale.ts`:
 
@@ -6944,7 +6944,7 @@ export function TempoChart({ plan }: { plan: Plan }) {
 
 In `PlanPage.tsx`, render `<section className="mt-8"><TempoChart plan={plan} /></section>` above the items.
 
-- [ ] **Step 4: Check it, lint, test, build; commit**
+- [x] **Step 4: Check it, lint, test, build; commit**
 
 Check the chart in the browser in a draft with a clear window, at desktop and 375 px.
 Run: `cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
@@ -6973,7 +6973,7 @@ git commit -m "feat(frontend): draft tempo chart"
   - `check_item(item: PlanItem, ctx: ReviewContext) -> ItemCheck`.
   - `plural(n, word) -> str` (`"1 fight"`, `"2 fights"`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/review/__init__.py`: empty.
 
@@ -7088,12 +7088,12 @@ def test_spike_and_side() -> None:
     assert check.numbers == "Jungler spent 100% of 1:30-6:00 on the top side"
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/review -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement the context**
+- [x] **Step 3: Implement the context**
 
 `backend/throughline/review/__init__.py`: empty.
 
@@ -7128,7 +7128,7 @@ class ReviewContext:
         return other(self.us)
 ```
 
-- [ ] **Step 4: Implement the checkers**
+- [x] **Step 4: Implement the checkers**
 
 `backend/throughline/review/checks.py`:
 
@@ -7357,12 +7357,12 @@ def check_item(item: PlanItem, ctx: ReviewContext) -> ItemCheck:
     raise TypeError(f"unknown plan item {item!r}")
 ```
 
-- [ ] **Step 5: Run the tests, lint and types**
+- [x] **Step 5: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/review -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend

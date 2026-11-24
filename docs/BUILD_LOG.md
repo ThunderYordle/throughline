@@ -62,3 +62,18 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Task 9.
 - What worked: Implemented `plan/constants.py`, `plan/models.py`, `plan/text.py`, and `tests/plan/test_models.py` test-first with all 4 tests, ruff, and mypy passing.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 11: participant features and build command
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `knowledge/items.py`, `knowledge/features.py`, `participant_features` table, and `throughline build` test-first; built all 1,738/1,738 real pro games using cached Data Dragon item JSONs.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 19: review context and plan checkers
+- Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Tasks 11 and 17-18.
+- What worked: Implemented `review/context.py`, `review/checks.py` (all 6 plan-item checkers), and 7 tests test-first with all checks passing.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Tasks 17 and 18: Draft, Plan pages and TempoChart
+- Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 11 and 19.
+- What worked: Implemented Draft/Plan pages, coach editing behind tokens, Discord export, and SVG `TempoChart` test-first; ESLint, TypeScript, 11 Vitest tests, and Vite build all passed.
+- What had to be fixed: Nothing.

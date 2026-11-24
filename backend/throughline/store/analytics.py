@@ -22,6 +22,7 @@ from throughline.game.model import (
     Spawn,
     Structure,
 )
+from throughline.knowledge.features import ParticipantFeatures
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS games (
@@ -39,6 +40,13 @@ CREATE TABLE IF NOT EXISTS objectives (
 CREATE TABLE IF NOT EXISTS structures (game_id TEXT, t DOUBLE, kind TEXT, lane TEXT, by_side TEXT);
 CREATE TABLE IF NOT EXISTS plates (game_id TEXT, t DOUBLE, lane TEXT, by_side TEXT, tier INTEGER);
 CREATE TABLE IF NOT EXISTS items (game_id TEXT, t DOUBLE, pid INTEGER, item TEXT);
+CREATE TABLE IF NOT EXISTS participant_features (
+  game_id TEXT, started_at TIMESTAMPTZ, patch TEXT, side TEXT, role TEXT, champion TEXT, opponent TEXT,
+  won BOOLEAN, gd5 INTEGER, gd10 INTEGER, gd15 INTEGER, gd20 INTEGER, gd25 INTEGER, gd30 INTEGER,
+  role_gd10 INTEGER, role_gd14 INTEGER, level6_at DOUBLE, item1_at DOUBLE, item2_at DOUBLE,
+  gd_after_level6 INTEGER, gd_after_item1 INTEGER,
+  first_dragon BOOLEAN, first_grubs BOOLEAN, first_herald BOOLEAN, first_baron BOOLEAN,
+  dragon_spawn DOUBLE, grubs_spawn DOUBLE, herald_spawn DOUBLE, baron_spawn DOUBLE);
 """
 
 RECORD_TABLES = ("participants", "frames", "kills", "spawns", "objectives", "structures", "plates", "items")
@@ -153,6 +161,15 @@ class AnalyticsStore:
         except Exception:
             self.con.execute("ROLLBACK")
             raise
+
+    def write_features(self, game_id: str, rows: list[ParticipantFeatures]) -> None:
+        self.con.execute("DELETE FROM participant_features WHERE game_id = ?", [game_id])
+        records = []
+        for r in rows:
+            record = {k: v for k, v in asdict(r).items() if k != "team_gd"}
+            record.update({f"gd{m}": v for m, v in r.team_gd.items()})
+            records.append(record)
+        self._insert("participant_features", records)
 
     def load_game(self, game_id: str) -> Game:
         row = self.con.execute(
