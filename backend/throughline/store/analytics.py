@@ -60,6 +60,23 @@ class AnalyticsStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.con = duckdb.connect(str(path), read_only=read_only)
 
+    @classmethod
+    def _wrap(cls, con: duckdb.DuckDBPyConnection) -> AnalyticsStore:
+        store = cls.__new__(cls)
+        store.con = con
+        return store
+
+    def reader(self) -> AnalyticsStore:
+        """A store over a new cursor of the same database, safe to use from another thread."""
+        return AnalyticsStore._wrap(self.con.cursor())
+
+    def champion_counts(self) -> list[tuple[str, int]]:
+        rows = self.con.execute(
+            "SELECT champion, count(DISTINCT game_id) AS n FROM participants "
+            "GROUP BY champion ORDER BY champion"
+        ).fetchall()
+        return [(str(name), int(n)) for name, n in rows]
+
     def close(self) -> None:
         self.con.close()
 

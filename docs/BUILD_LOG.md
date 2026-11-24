@@ -52,3 +52,13 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 7 and 8.
 - What worked: Implemented `types.ts`, `api.ts`, `lib/time.ts`, `lib/ddragon.ts`, `map/transform.ts`, `replay/clock.ts`, `replay/draw.ts`, `ReplayPlayer.tsx`, `HomePage.tsx`, and `ReplayPage.tsx` test-first; ESLint, TypeScript, 7 Vitest assertions, and Vite production build all passed.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 9: replay payload and games API
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Added `AnalyticsStore.reader()` and `champion_counts()`, `api/replay.py`, `api/routes_games.py`, `api/main.py`, and API test fixtures test-first with all checks passing.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 13: plan models and text helpers
+- Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Task 9.
+- What worked: Implemented `plan/constants.py`, `plan/models.py`, `plan/text.py`, and `tests/plan/test_models.py` test-first with all 4 tests, ruff, and mypy passing.
+- What had to be fixed: Nothing.

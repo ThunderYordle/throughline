@@ -3499,7 +3499,7 @@ git commit -m "feat(game): fight detection"
   - Routes: `GET /api/champions`, `GET /api/games?q=&limit=`, `GET /api/games/{game_id}/replay`.
   - Test fixture `client` (TestClient over a store holding two GameBuilder games, `g1` and `g2`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/api/__init__.py`: empty.
 
@@ -3571,12 +3571,12 @@ def test_replay_404(client: TestClient) -> None:
     assert client.get("/api/games/nope/replay").status_code == 404
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/api -v`
 Expected: FAIL (`create_app() got an unexpected keyword argument 'analytics'`)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `AnalyticsStore` in `backend/throughline/store/analytics.py`:
 
@@ -3750,12 +3750,12 @@ app = create_app(Settings.from_env())
 
 Update `backend/tests/test_app.py`: `create_app(make_settings(tmp_path))` still works (it opens a store in `tmp_path`).
 
-- [ ] **Step 4: Run all tests, lint and types**
+- [x] **Step 4: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
@@ -5142,7 +5142,7 @@ git commit -m "feat(knowledge): KnowledgeBase with patch windows, time split and
   - `models`: `Owner = Literal["us", "them"]`, `PlanObjective = Literal["dragon", "grubs", "herald"]`, pydantic models `Evidence(text, games)`, `ObjectiveItem`, `ConcedeItem`, `LaneItem`, `WindowItem`, `SpikeItem`, `SideItem` (all with `id`, `text`, `evidence: list[Evidence]`, `score`, `origin`), `PlanItem` (discriminated union on `type`), `Draft(blue, red, us, patch: str | None)` with `ours()`, `theirs()`, `TempoPoint(minute, value, games)`, `Window(start, end, owner, peak, games)`, `LanePriority(lane, owner: Owner | None, value, games, detail)`, `Plan(draft, items, tempo, windows, lanes, scope_games)`; `item_time(item) -> float`.
   - `text`: `fmt_time(seconds) -> str`, `fmt_gold(value) -> str` (`"+1,240"`, `"-300"`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/plan/__init__.py`: empty.
 
@@ -5188,12 +5188,12 @@ def test_plan_items_round_trip_by_type() -> None:
     assert adapter.validate_json(adapter.dump_json(item)) == item
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/plan -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/plan/__init__.py`: empty.
 
@@ -5391,12 +5391,12 @@ class Plan(BaseModel):
     scope_games: int
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/plan -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
