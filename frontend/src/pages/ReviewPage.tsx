@@ -53,7 +53,7 @@ export function ReviewPage() {
       <section className="mt-6">
         <GameTimeline gold={review.gold} duration={duration} entries={entries} selected={current?.id} onSelect={setSelected} />
       </section>
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)]">
+      <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)]">
         <ReviewList
           entries={entries}
           states={data.entries}
@@ -62,7 +62,7 @@ export function ReviewPage() {
           onSelect={setSelected}
           onState={(entryId, state) => save.mutate({ entryId, state })}
         />
-        <div className="lg:sticky lg:top-4 lg:self-start">
+        <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
           {current && (
             <ReplayPlayer
               key={current.id}

@@ -85,8 +85,8 @@ export function ReplayPlayer({ gameId, start, end, markers = [] }: Props) {
 
   const span = clock.end - clock.start || 1;
   return (
-    <div ref={boxRef} className="w-full max-w-[640px]">
-      <canvas ref={canvasRef} width={size} height={size} className="rounded" />
+    <div ref={boxRef} className="min-w-0 w-full max-w-[640px]">
+      <canvas ref={canvasRef} width={size} height={size} className="block h-auto w-full rounded" />
       <div className="mt-3 flex items-center gap-3 text-sm">
         <button
           type="button"

@@ -24,7 +24,7 @@ export function ReviewList({ entries, states, selected, editable, onSelect, onSt
   const [draftNote, setDraftNote] = useState<Record<string, string>>({});
 
   return (
-    <ul className="space-y-2">
+    <ul className="min-w-0 space-y-2">
       {entries.map((entry) => {
         const state = states[entry.id] ?? { status: null, note: "" };
         const note = draftNote[entry.id] ?? state.note;
