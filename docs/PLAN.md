@@ -5915,7 +5915,7 @@ git commit -m "feat(plan): plan generator"
   - `create_app(settings, analytics=None, app_store=None, knowledge=None)` where `knowledge: Callable[[AnalyticsStore, str, datetime | None], KnowledgeSource]` defaults to `KnowledgeBase`.
   - Routes: `POST /api/plans` (body `{"draft": Draft}`), `POST /api/plans/from-game` (body `{"game_id", "us"}`), `GET /api/plans/{id}`, `PATCH /api/plans/{id}` (header `X-Edit-Token`, body `{"items": [...]}`), `GET /api/plans/{id}/games`. Create responses are `{"id", "edit_token", "plan"}`; reads are `{"id", "plan"}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/store/test_app_store.py`:
 
@@ -6015,12 +6015,12 @@ def test_bad_requests(client: TestClient) -> None:
                        ).status_code == 422
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/store/test_app_store.py tests/api -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.store.app'`
 
-- [ ] **Step 3: Implement the app store**
+- [x] **Step 3: Implement the app store**
 
 `backend/throughline/store/app.py`:
 
@@ -6078,7 +6078,7 @@ class AppStore:
         return cursor.rowcount == 1
 ```
 
-- [ ] **Step 4: Matching games**
+- [x] **Step 4: Matching games**
 
 Add to `AnalyticsStore`:
 
@@ -6093,7 +6093,7 @@ Add to `AnalyticsStore`:
         return out
 ```
 
-- [ ] **Step 5: Implement the routes and wire the app**
+- [x] **Step 5: Implement the routes and wire the app**
 
 `backend/throughline/api/routes_plans.py`:
 
@@ -6255,12 +6255,12 @@ def create_app(settings: Settings, analytics: AnalyticsStore | None = None, app_
     return app
 ```
 
-- [ ] **Step 6: Run all tests, lint and types**
+- [x] **Step 6: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend
@@ -7784,7 +7784,7 @@ git commit -m "feat(review): macro moment detectors"
   - `AppStore.create_review(body) -> tuple[str, str]`, `get_review(id) -> ReviewBody | None`, `set_entry(review_id, token, entry_id, state) -> bool`, `entries(review_id) -> dict[str, EntryState]`.
   - Routes: `POST /api/reviews` (body `{"plan_id", "game_id"}`) -> `{"id", "edit_token", "review", "entries"}`; `GET /api/reviews/{id}` -> `{"id", "review", "entries"}`; `PATCH /api/reviews/{id}/entries/{entry_id}` (header `X-Edit-Token`, body `EntryState`) -> `{"entries"}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/review/test_assemble.py`:
 
@@ -7885,12 +7885,12 @@ def test_reviews_and_entries(tmp_path: Path) -> None:
     assert store.entries(review_id) == {"e1": EntryState(status=None, note="n2")}
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/review/test_assemble.py tests/api/test_reviews.py tests/store -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.review.assemble'`
 
-- [ ] **Step 3: Implement assembly**
+- [x] **Step 3: Implement assembly**
 
 `backend/throughline/review/assemble.py`:
 
@@ -7962,7 +7962,7 @@ def build_review(plan_id: str, plan: Plan, game: Game) -> ReviewBody:
     )
 ```
 
-- [ ] **Step 4: Store reviews**
+- [x] **Step 4: Store reviews**
 
 In `backend/throughline/store/app.py`, extend `SCHEMA`:
 
@@ -8010,7 +8010,7 @@ and add:
 
 with `from throughline.review.assemble import EntryState, ReviewBody`.
 
-- [ ] **Step 5: Routes**
+- [x] **Step 5: Routes**
 
 `backend/throughline/api/routes_reviews.py`:
 
@@ -8082,12 +8082,12 @@ def set_entry(request: Request, review_id: str, entry_id: str, state: EntryState
 
 Register it in `create_app`: `app.include_router(routes_reviews.router)`.
 
-- [ ] **Step 6: Run all tests, lint and types**
+- [x] **Step 6: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend
@@ -8539,7 +8539,7 @@ git commit -m "feat(frontend): review page with timeline, verdicts, notes and cl
   - CLI: `throughline validate --holdout-from 2026-06-01`; writes `data/validation.json`.
   - Route: `GET /api/validation`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/validation/__init__.py`: empty.
 
@@ -8601,12 +8601,12 @@ def test_summarize_quartiles_and_adjusted_difference() -> None:
     assert lane["adjusted_difference"] == pytest.approx(0.2)
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/validation -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/validation/__init__.py`: empty.
 
@@ -8773,18 +8773,18 @@ def validation(request: Request) -> dict[str, Any]:
     return report
 ```
 
-- [ ] **Step 4: Run all tests, lint and types**
+- [x] **Step 4: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Run it on real data**
+- [x] **Step 5: Run it on real data**
 
 Choose the holdout date so roughly the last 40% of games are in it: on the starter data, 2025-08-20 (695 of 1,738 games, the end of the 2025 season and all of 2026). Every constant change from Tasks 15 and 20 must have been made looking only at games before that date.
 Run: `cd backend && uv run throughline validate --holdout-from <date>`
 Record the quartile win rates and the per-type adjusted differences in BUILD_LOG exactly as they come out.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend
@@ -8804,7 +8804,7 @@ The starter data's license allows it only on the participant's machine, so the h
 **Interfaces:**
 - Produces: `synthetic_games(n: int, seed: int = 7) -> Iterator[Game]`, `OFFLINE_LEGENDARY: set[str]`; CLI `throughline seed --games 300`, `throughline build --offline`; `create_app` serving `settings.frontend_dist` with an SPA fallback for non-`/api` paths.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/test_synthetic.py`:
 
@@ -8847,12 +8847,12 @@ def test_spa_fallback(tmp_path: Path) -> None:
     assert client.get("/api/nope").status_code == 404
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/test_synthetic.py tests/api/test_static.py -v`
 Expected: FAIL
 
-- [ ] **Step 3: Implement the synthetic dataset**
+- [x] **Step 3: Implement the synthetic dataset**
 
 `backend/throughline/synthetic.py`:
 
@@ -8938,7 +8938,7 @@ def synthetic_games(n: int, seed: int = 7) -> Iterator[Game]:
         yield b.build()
 ```
 
-- [ ] **Step 4: CLI commands and the static frontend**
+- [x] **Step 4: CLI commands and the static frontend**
 
 Add to `backend/throughline/cli.py`:
 
@@ -8997,17 +8997,17 @@ In `create_app`, after the routers:
 
 with `from fastapi import HTTPException`, `from fastapi.responses import FileResponse`, `from fastapi.staticfiles import StaticFiles`.
 
-- [ ] **Step 5: Run all tests, lint and types**
+- [x] **Step 5: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 6: Run the whole app on synthetic data**
+- [x] **Step 6: Run the whole app on synthetic data**
 
 Run: `cd backend && TL_DATA_DIR=../data-synthetic uv run throughline seed --games 400 && TL_DATA_DIR=../data-synthetic uv run throughline build --offline && TL_DATA_DIR=../data-synthetic uv run throughline validate --holdout-from 2026-08-01`
 Then serve it and click through plan and review. Add `data-synthetic/` to `.gitignore`.
 
-- [ ] **Step 7: Container and start script**
+- [x] **Step 7: Container and start script**
 
 `Dockerfile`:
 
@@ -9070,7 +9070,7 @@ Without `TL_REAL_DATA`, it serves the synthetic league; add a banner that says s
 Set `TL_REAL_DATA=1` only after the organizers confirm in writing that the starter data may be hosted for judging (the license allows it only on the participant's machine); the first boot then clones `lol/` and `meta/`, ingests and builds (minutes).
 Check the deploy logs until uvicorn starts, then open the public URL and run through the core flow.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A

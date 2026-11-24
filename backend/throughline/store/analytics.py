@@ -254,6 +254,16 @@ class AnalyticsStore:
             )
         return out
 
+    def games_with_champions(self, ours: dict[Role, str], theirs: dict[Role, str]) -> list[GameSummary]:
+        want = (sorted(ours.values()), sorted(theirs.values()))
+        out = []
+        for summary in self.list_games(limit=100_000):
+            blue = sorted(summary.champions["blue"].values())
+            red = sorted(summary.champions["red"].values())
+            if want in ((blue, red), (red, blue)):
+                out.append(summary)
+        return out
+
     def game_ids_by_time(self) -> list[str]:
         rows = self.con.execute("SELECT game_id FROM games ORDER BY started_at, game_id").fetchall()
         return [row[0] for row in rows]

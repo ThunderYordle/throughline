@@ -97,3 +97,23 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in PyCharm.
 - What worked: Implemented `plan/tempo.py`, `plan/generator.py`, `FakeKnowledge`, and 9 tests test-first with all checks passing.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 16: app store and plans API
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented SQLite `AppStore`, `AnalyticsStore.games_with_champions`, and `api/routes_plans.py` test-first with all tests, ruff, and mypy passing.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 21: review assembly, storage and API
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `review/assemble.py`, `AppStore` review/entry storage, and `api/routes_reviews.py` test-first with all checks passing.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 23: validation backtest
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `validation/backtest.py`, `throughline validate` CLI, and `GET /api/validation` test-first; all 89 backend tests, ruff, and mypy passed.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 24: synthetic dataset, static frontend and deployment
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `synthetic.py`, `throughline seed`, `throughline build --offline`, static SPA fallback in `create_app`, `Dockerfile`, `scripts/start.sh`, and `.dockerignore`.
+- What had to be fixed: Replaced a bare lane string tuple with `LANES` in `synthetic.py` to satisfy strict mypy.
