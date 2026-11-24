@@ -21,3 +21,14 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Task 3.
 - What worked: Implemented `game/builder.py` and `tests/game/test_builder.py` test-first with all checks passing.
 - What had to be fixed: Nothing.
+
+
+## 2026-11-24 - Task 5: analytics store and ingest
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `store/analytics.py`, `grid/ingest.py`, and the `throughline ingest` CLI command test-first; all 4 store/ingest tests, ruff, and mypy passed.
+- What had to be fixed: Pinned `click<8.2` in `backend/pyproject.toml` to resolve a `typer==0.15.1` vs `click 8.5` `make_metavar` crash on `--help`, and added `/backend/data/` to `.gitignore`.
+
+## 2026-11-24 - Task 6: GameIndex
+- Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Task 5.
+- What worked: Implemented `game/index.py` (frame lookup, 20 s gap interpolation, gold diffs, proximity) and `tests/game/test_index.py` test-first with all checks passing.
+- What had to be fixed: Nothing.

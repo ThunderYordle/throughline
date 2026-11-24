@@ -1,4 +1,5 @@
 /data/
+/backend/data/
 *.duckdb
 *.duckdb.wal
 *.sqlite

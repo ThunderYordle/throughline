@@ -2417,7 +2417,7 @@ git commit -m "feat(game): GameBuilder for exact test games"
 
 The `games` table has no primary key: DuckDB 1.1 rejects deleting and re-inserting the same key in one transaction, and `write_game` replaces a game exactly that way.
 
-- [ ] **Step 1: Write the failing store tests**
+- [x] **Step 1: Write the failing store tests**
 
 `backend/tests/store/__init__.py`: empty.
 
@@ -2477,12 +2477,12 @@ def test_write_replaces_and_lists(tmp_path: Path) -> None:
     assert store.list_games(q="ahri")[0].game_id in {"s1-1", "s2-1"}
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/store -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement the store**
+- [x] **Step 3: Implement the store**
 
 `backend/throughline/store/__init__.py`: empty.
 
@@ -2727,12 +2727,12 @@ class AnalyticsStore:
 
 ```
 
-- [ ] **Step 4: Run the store tests**
+- [x] **Step 4: Run the store tests**
 
 Run: `cd backend && uv run pytest tests/store -v`
 Expected: 2 passed.
 
-- [ ] **Step 5: Write the failing ingest test**
+- [x] **Step 5: Write the failing ingest test**
 
 `backend/tests/grid/test_ingest.py`:
 
@@ -2786,12 +2786,12 @@ def test_ingest_filters_by_event_and_date(tmp_path: Path) -> None:
     assert ingest(stl, store, event="LCS", since=date(2026, 7, 1)).added == 2
 ```
 
-- [ ] **Step 6: Run it to verify it fails**
+- [x] **Step 6: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest tests/grid/test_ingest.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid.ingest'`
 
-- [ ] **Step 7: Implement ingest and the CLI command**
+- [x] **Step 7: Implement ingest and the CLI command**
 
 `backend/throughline/grid/ingest.py`:
 
@@ -2861,7 +2861,7 @@ def ingest(event: str | None = None, since: str | None = None) -> None:
         typer.echo(f"  {key}: {error}")
 ```
 
-- [ ] **Step 8: Run all tests, lint and types**
+- [x] **Step 8: Run all tests, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check . && uv run ruff format --check .`
 Expected: all pass, clean.
@@ -2873,7 +2873,7 @@ Expected: about 2 minutes; `added 1738 games`, 1 failure (`3ac8f0c2-...`: a side
 Record the numbers and every failure's reason in BUILD_LOG.
 Open the file in DataGrip and save a scratch query for the build log: `SELECT tournament, count(*), min(patch), max(patch) FROM games GROUP BY 1 ORDER BY 1`.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add backend docs/BUILD_LOG.md
@@ -2898,7 +2898,7 @@ git add backend docs/BUILD_LOG.md
 Real frames are irregular (median 2 s apart, gaps up to a minute), so every position question goes through `position`, and an unknown position never counts as near.
 On the real data, 3.4% of player positions sampled every 30 s are unknown under these two constants.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `backend/tests/game/test_index.py`:
 
@@ -2953,12 +2953,12 @@ def test_positions_interpolate_short_gaps_and_are_unknown_in_long_ones() -> None
     assert index.near("blue", (1000.0, 0.0), 500.0, 30.0) == 0  # unknown is not near
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest tests/game/test_index.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/game/index.py`:
 
@@ -3076,12 +3076,12 @@ class GameIndex:
         return best
 ```
 
-- [ ] **Step 4: Run the test, lint and types**
+- [x] **Step 4: Run the test, lint and types**
 
 Run: `cd backend && uv run pytest tests/game -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
