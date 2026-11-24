@@ -29,7 +29,9 @@ export function useDdragon() {
   const { data } = useQuery({ queryKey: ["ddragon"], queryFn: loadIndex, staleTime: Infinity });
   return useMemo(
     () => ({
-      mapUrl: MAP_URL,
+      version: data?.version,
+      mapUrl: data ? `${DDRAGON}/cdn/${data.version}/img/map/map11.png` : MAP_URL,
+      fallbackMapUrl: MAP_URL,
       iconFor(champion: string): string | undefined {
         const id = data?.ids.get(normalize(champion));
         return data && id ? `${DDRAGON}/cdn/${data.version}/img/champion/${id}.png` : undefined;

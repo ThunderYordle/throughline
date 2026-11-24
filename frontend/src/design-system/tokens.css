@@ -1,0 +1,63 @@
+/* Throughline Design System — Tactical Warroom Tokens (v1.0)
+ * Fixed design tokens: single source of truth for obsidian surfaces,
+ * hairline borders, high-contrast typography, team colors, and telemetry accents.
+ */
+
+:root {
+  /* 4-tier obsidian elevation surfaces */
+  --tl-bg-canvas: #06080d;
+  --tl-bg-canvas-rgb: 6 8 13;
+  --tl-bg-surface: #0b0f17;
+  --tl-bg-surface-rgb: 11 15 23;
+  --tl-bg-raised: #111722;
+  --tl-bg-raised-rgb: 17 23 34;
+  --tl-bg-overlay: #182030;
+  --tl-bg-overlay-rgb: 24 32 48;
+
+  /* 3-tier hairline borders */
+  --tl-border-subtle: rgba(148, 163, 184, 0.1);
+  --tl-border-default: rgba(148, 163, 184, 0.17);
+  --tl-border-strong: rgba(148, 163, 184, 0.3);
+
+  /* 4-tier text hierarchy */
+  --tl-text-primary: #f1f5f9;
+  --tl-text-primary-rgb: 241 245 249;
+  --tl-text-secondary: #a8b3c7;
+  --tl-text-secondary-rgb: 168 179 199;
+  --tl-text-muted: #64748b;
+  --tl-text-muted-rgb: 100 116 139;
+  --tl-text-inverse: #05080f;
+  --tl-text-inverse-rgb: 5 8 15;
+
+  /* Tactical accent & team sides */
+  --tl-accent-cyan: #22d3ee;
+  --tl-accent-cyan-rgb: 34 211 238;
+  --tl-side-blue: #38bdf8;
+  --tl-side-blue-rgb: 56 189 248;
+  --tl-side-red: #fb7185;
+  --tl-side-red-rgb: 251 113 133;
+
+  /* Semantic telemetry status */
+  --tl-status-good: #10b981;
+  --tl-status-good-rgb: 16 185 129;
+  --tl-status-warn: #f59e0b;
+  --tl-status-warn-rgb: 245 158 11;
+  --tl-status-bad: #f43f5e;
+  --tl-status-bad-rgb: 244 63 94;
+  --tl-status-info: #38bdf8;
+  --tl-status-info-rgb: 56 189 248;
+  --tl-status-violet: #a78bfa;
+  --tl-status-violet-rgb: 167 139 250;
+  --tl-status-orange: #fb923c;
+  --tl-status-orange-rgb: 251 146 60;
+
+  /* Fixed geometry */
+  --tl-radius-sm: 6px;
+  --tl-radius-md: 8px;
+  --tl-radius-lg: 12px;
+  --tl-radius-xl: 16px;
+
+  /* Shadows & elevation highlights */
+  --tl-shadow-panel: inset 0 1px 0 0 rgba(255, 255, 255, 0.04), 0 10px 30px -16px rgba(0, 0, 0, 0.8);
+  --tl-shadow-elevated: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 18px 40px -16px rgba(0, 0, 0, 0.9);
+}

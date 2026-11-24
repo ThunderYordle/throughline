@@ -20,15 +20,48 @@ export interface ReplayParticipant {
   player: string;
 }
 
+export interface ReplayFight {
+  start: number;
+  end: number;
+  x: number;
+  y: number;
+  kills: Record<Side, number>;
+  present: Record<Side, number>;
+}
+
+export interface ReplaySetup {
+  kind: string;
+  spawn_at: number;
+  taken_at: number | null;
+  by: Side | null;
+  x: number;
+  y: number;
+  near_at_spawn: Record<Side, number>;
+  grouped_at: Record<Side, number | null>;
+}
+
+export interface ReplayPlate {
+  t: number;
+  lane: Lane;
+  by: Side;
+  tier: number;
+}
+
 export interface Replay {
   game: { id: string; duration: number; patch: string; teams: Record<Side, string>; winner: Side; tournament: string };
   participants: ReplayParticipant[];
   times: number[];
   positions: Record<string, [number, number, number, number][]>;
+  player_stats?: Record<string, [number, number][]>;
+  team_gold?: Record<Side, number[]>;
+  gold?: number[];
   spawns: { t: number; kind: string; x: number | null; y: number | null }[];
-  kills: { t: number; killer: number | null; victim: number; x: number; y: number; side: Side }[];
+  kills: { t: number; killer: number | null; victim: number; assists?: number[]; x: number; y: number; side: Side }[];
   objectives: { t: number; kind: string; by: Side }[];
   structures: { t: number; kind: string; lane: string | null; by: Side }[];
+  plates?: ReplayPlate[];
+  fights?: ReplayFight[];
+  setups?: ReplaySetup[];
 }
 
 export interface Marker {
@@ -147,4 +180,27 @@ export interface ReviewResponse {
   review: ReviewBody;
   entries: Record<string, EntryState>;
   edit_token?: string;
+}
+
+export interface ValidationQuartile {
+  low: number;
+  high: number;
+  sides: number;
+  win_rate: number;
+}
+
+export interface ValidationTypeRow {
+  type: PlanItem["type"];
+  followed: number;
+  not_followed: number;
+  followed_win_rate: number;
+  not_followed_win_rate: number;
+  adjusted_difference: number;
+}
+
+export interface ValidationReport {
+  holdout_from: string;
+  sides: number;
+  adherence_quartiles: ValidationQuartile[];
+  by_type: ValidationTypeRow[];
 }

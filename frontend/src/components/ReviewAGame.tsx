@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { Badge, Button, Callout, EmptyState, Panel, PanelBody, PanelHeader } from "../design-system";
 import { saveToken } from "../lib/tokens";
 
 interface Props {
@@ -21,28 +22,59 @@ export function ReviewAGame({ planId, suggestedGameId }: Props) {
   const sorted = [...games].sort((a, b) => Number(b.game_id === suggestedGameId) - Number(a.game_id === suggestedGameId));
 
   return (
-    <section className="mt-10">
-      <h2 className="text-lg font-semibold">Review a game</h2>
-      {sorted.length === 0 ? (
-        <p className="mt-2 text-sm text-zinc-400">No game in the dataset was played with this draft yet.</p>
-      ) : (
-        <ul className="mt-3 divide-y divide-zinc-800">
-          {sorted.map((game) => (
-            <li key={game.game_id} className="flex items-center justify-between gap-4 py-2 text-sm">
-              <span>{game.teams.blue} vs {game.teams.red} · {game.tournament} · {new Date(game.started_at).toLocaleDateString()}</span>
-              <button
-                type="button"
-                disabled={create.isPending}
-                onClick={() => create.mutate(game.game_id)}
-                className="rounded bg-emerald-500 px-3 py-1 font-medium text-zinc-950 disabled:opacity-40"
+    <Panel>
+      <PanelHeader
+        title="Review a game"
+        description="Score execution against this plan and inspect clips on the tactical map."
+        meta={`${sorted.length} matching`}
+      />
+      <PanelBody className="p-0 sm:p-0">
+        {sorted.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              title="No matching played games yet"
+              description="This draft has not been played in the loaded match dataset."
+              className="py-6"
+            />
+          </div>
+        ) : (
+          <ul className="divide-y divide-line-subtle">
+            {sorted.map((game) => (
+              <li
+                key={game.game_id}
+                className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:bg-surface-raised/45"
               >
-                Review
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {create.error && <p className="mt-2 text-rose-400">{String(create.error.message)}</p>}
-    </section>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-display font-semibold text-side-blue">{game.teams.blue}</span>
+                    <span className="font-mono text-[11px] text-ink-muted">vs</span>
+                    <span className="font-display font-semibold text-side-red">{game.teams.red}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
+                    <Badge tone="neutral" pill={false}>
+                      {game.tournament}
+                    </Badge>
+                    <span className="font-mono tabular-nums">{new Date(game.started_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="primary"
+                  size="xs"
+                  disabled={create.isPending}
+                  onClick={() => create.mutate(game.game_id)}
+                >
+                  {create.isPending ? "Reviewing..." : "Review"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {create.error && (
+          <div className="p-4 pt-2">
+            <Callout tone="bad">{String(create.error.message)}</Callout>
+          </div>
+        )}
+      </PanelBody>
+    </Panel>
   );
 }

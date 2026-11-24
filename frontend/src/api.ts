@@ -1,4 +1,14 @@
-import type { Draft, EntryState, GameSummary, PlanItem, PlanResponse, Replay, ReviewResponse, Side } from "./types";
+import type {
+  Draft,
+  EntryState,
+  GameSummary,
+  PlanItem,
+  PlanResponse,
+  Replay,
+  ReviewResponse,
+  Side,
+  ValidationReport,
+} from "./types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -40,4 +50,5 @@ export const api = {
       `/api/reviews/${encodeURIComponent(id)}/entries/${encodeURIComponent(entryId)}`,
       { method: "PATCH", headers: { ...JSON_HEADERS, "X-Edit-Token": token }, body: JSON.stringify(state) },
     ),
+  validation: () => getJson<ValidationReport>("/api/validation"),
 };

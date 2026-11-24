@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Badge, Button, Panel, PanelBody, PanelFooter, TextInput, type BadgeTone, type PanelAccent } from "../design-system";
 import type { PlanItem } from "../types";
 
 const LABEL: Record<PlanItem["type"], string> = {
@@ -9,6 +10,23 @@ const LABEL: Record<PlanItem["type"], string> = {
   spike: "Spike",
   side: "Jungle side",
 };
+
+function toneFor(item: PlanItem): { accent: PanelAccent; badge: BadgeTone } {
+  switch (item.type) {
+    case "objective":
+      return { accent: "warn", badge: "warn" };
+    case "concede":
+      return { accent: "violet", badge: "violet" };
+    case "lane":
+      return { accent: "blue", badge: "blue" };
+    case "window":
+      return item.stance === "force" ? { accent: "good", badge: "good" } : { accent: "bad", badge: "bad" };
+    case "spike":
+      return { accent: "orange", badge: "orange" };
+    case "side":
+      return { accent: "cyan", badge: "cyan" };
+  }
+}
 
 interface Props {
   item: PlanItem;
@@ -21,47 +39,82 @@ export function PlanItemCard({ item, editable, onChange, onRemove }: Props) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(item.text);
   const games = item.evidence.length ? Math.min(...item.evidence.map((evidence) => evidence.games)) : 0;
+  const { accent, badge } = toneFor(item);
+
   return (
-    <li className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">{LABEL[item.type]}</span>
-        <span className="text-xs tabular-nums text-zinc-500">{games} games</span>
-      </div>
-      {editing ? (
-        <div className="mt-2 flex gap-2">
-          <input value={text} onChange={(event) => setText(event.target.value)} className="flex-1 rounded bg-zinc-950 px-2 py-1" />
-          <button
-            type="button"
-            className="rounded bg-zinc-100 px-3 py-1 text-sm text-zinc-900"
-            onClick={() => {
-              onChange({ ...item, text, origin: "edited" });
-              setEditing(false);
-            }}
-          >
-            Save
-          </button>
+    <Panel as="li" accent={accent} interactive>
+      <PanelBody className="space-y-3 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={badge} pill={false}>
+              {LABEL[item.type]}
+            </Badge>
+            {item.origin !== "generated" && <Badge tone="warn">Edited by coach</Badge>}
+          </div>
+          <Badge tone="neutral" mono>
+            {games} games
+          </Badge>
         </div>
-      ) : (
-        <p className="mt-2 font-medium">{item.text}</p>
-      )}
-      <ul className="mt-2 space-y-1 text-sm text-zinc-400">
-        {item.evidence.map((evidence) => (
-          <li key={evidence.text}>
-            {evidence.text} <span className="text-zinc-600">({evidence.games} games)</span>
-          </li>
-        ))}
-      </ul>
-      {item.origin !== "generated" && <p className="mt-2 text-xs text-amber-400">Edited by the coach</p>}
+
+        {editing ? (
+          <div className="flex flex-wrap gap-2">
+            <TextInput
+              compact
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              className="min-w-0 flex-1"
+            />
+            <Button
+              variant="accent"
+              size="xs"
+              onClick={() => {
+                onChange({ ...item, text, origin: "edited" });
+                setEditing(false);
+              }}
+            >
+              Save
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={() => {
+                setText(item.text);
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <p className="font-display text-base font-semibold leading-snug text-ink-primary">{item.text}</p>
+        )}
+
+        <ul className="space-y-1 border-t border-line-subtle pt-2.5">
+          {item.evidence.map((evidence) => (
+            <li
+              key={evidence.text}
+              className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-ink-secondary"
+            >
+              <span>{evidence.text}</span>
+              <span className="font-mono text-[11px] tabular-nums text-ink-muted">({evidence.games} games)</span>
+            </li>
+          ))}
+        </ul>
+      </PanelBody>
+
       {editable && !editing && (
-        <div className="mt-3 flex gap-3 text-sm text-zinc-400">
-          <button type="button" className="hover:text-zinc-100" onClick={() => setEditing(true)}>
-            Edit
-          </button>
-          <button type="button" className="hover:text-rose-300" onClick={onRemove}>
-            Remove
-          </button>
-        </div>
+        <PanelFooter className="py-2">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-ink-muted">Coach controls</span>
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
+              Edit
+            </Button>
+            <Button variant="ghost" size="xs" className="hover:text-rose-300" onClick={onRemove}>
+              Remove
+            </Button>
+          </div>
+        </PanelFooter>
       )}
-    </li>
+    </Panel>
   );
 }
