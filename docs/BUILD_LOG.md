@@ -92,3 +92,8 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 12 and 20.
 - What worked: Implemented `ReviewPage.tsx`, `ReviewTimeline`, `ReviewList`, game picker on `PlanPage`, confirm/dismiss/notes, read-only share link, and `reviewEntries.test.ts` test-first; ESLint, TypeScript, 13 Vitest tests, and Vite build all passed.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Tasks 14 and 15: draft tempo, lane priorities and plan generator
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `plan/tempo.py`, `plan/generator.py`, `FakeKnowledge`, and 9 tests test-first with all checks passing.
+- What had to be fixed: Nothing.

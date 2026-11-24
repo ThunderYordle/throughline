@@ -5414,7 +5414,7 @@ git commit -m "feat(plan): plan item models, draft and text helpers"
 - Produces: `draft_tempo(kb, draft) -> list[TempoPoint]`, `tempo_at(points, t) -> float`, `tempo_games_at(points, t) -> int`, `windows(points) -> list[Window]`, `lane_priorities(kb, draft) -> dict[Lane, LanePriority]`.
 - Test helper (`tests/plan/fake_knowledge.py`): `FakeKnowledge` with settable dicts `curves`, `edges`, `matchups`, `spikes`, `tendencies` and a uniform `games` count.
 
-- [ ] **Step 1: Write the fake and the failing tests**
+- [x] **Step 1: Write the fake and the failing tests**
 
 `backend/tests/plan/fake_knowledge.py`:
 
@@ -5511,12 +5511,12 @@ def test_lane_priorities_prefer_matchups() -> None:
     assert "Ahri vs Orianna" in lanes["mid"].detail
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/plan/test_tempo.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/plan/tempo.py`:
 
@@ -5604,12 +5604,12 @@ def lane_priorities(kb: KnowledgeSource, draft: Draft) -> dict[Lane, LanePriorit
     return out
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/plan -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
@@ -5626,7 +5626,7 @@ git commit -m "feat(plan): draft tempo, windows and lane priorities"
 - Consumes: Tasks 12-14; `KnowledgeSource.first_spawn` (Task 12), with `SPAWNS` (Task 7) as the fallback.
 - Produces: `confidence(games) -> float`, `build_plan(kb: KnowledgeSource, draft: Draft) -> Plan`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/plan/test_generator.py`:
 
@@ -5694,12 +5694,12 @@ def test_at_most_eight_items() -> None:
     assert len(build_plan(kb, DRAFT).items) == 8
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/plan/test_generator.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/plan/generator.py`:
 
@@ -5883,7 +5883,7 @@ def build_plan(kb: KnowledgeSource, draft: Draft) -> Plan:
                 lanes=list(lanes.values()), scope_games=kb.scope_games)
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/plan -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
@@ -5893,7 +5893,7 @@ Expected: all pass, clean.
 Write a scratch script (not committed) that builds plans for 5 recent real games' drafts with `KnowledgeBase(store, game.patch, before=game.meta.started_at)` and prints them.
 Read every line as a coach would: does it name a time, a count and its evidence, and is it plausible for the comps? Log the five plans and any constant you changed in BUILD_LOG (constants change only on games before the validation's holdout date, see Task 24).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend
