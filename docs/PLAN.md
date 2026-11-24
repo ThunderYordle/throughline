@@ -947,7 +947,7 @@ git commit -m "feat(game): game model, map geometry and role inference"
   - CLI: `throughline grid census SERIES_ID`.
 - Test helper: `tests.grid.feed.FeedBuilder`, which writes small GRID feeds (envelopes with snapshots) so no test needs real data.
 
-- [ ] **Step 1: Write the feed builder and the failing tests**
+- [x] **Step 1: Write the feed builder and the failing tests**
 
 `backend/tests/grid/__init__.py`: empty.
 
@@ -1425,12 +1425,12 @@ def test_parsed_games_match_the_metadata() -> None:
     assert supports_with_atlas / len(games) >= 0.95
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/grid -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid'`
 
-- [ ] **Step 3: Implement the source and the schema**
+- [x] **Step 3: Implement the source and the schema**
 
 `backend/throughline/grid/__init__.py`: empty.
 
@@ -1670,7 +1670,7 @@ def plate_of(event_type: str) -> tuple[str, Lane, int] | None:
     return match.group(1), LANE_NAMES[match.group(2).lower()], int(match.group(3))
 ```
 
-- [ ] **Step 4: Implement the census and its command**
+- [x] **Step 4: Implement the census and its command**
 
 `backend/throughline/grid/census.py`:
 
@@ -1795,7 +1795,7 @@ def grid_census(series: str, out: Path = Path("../docs/data/events.md")) -> None
 
 ```
 
-- [ ] **Step 5: Implement the parser**
+- [x] **Step 5: Implement the parser**
 
 The parser follows the series: `series-started-game` opens a game, `series-!started-game` drops a rolled-back one, `series-ended-game` closes it.
 For every event it reads the current game's snapshot (positions, gold, sides, names, champions, patch) and then the event itself.
@@ -2137,12 +2137,12 @@ def _finish(state: _GameState, info: SeriesInfo, item_names: dict[str, str]) -> 
     )
 ```
 
-- [ ] **Step 6: Run the tests, lint and types**
+- [x] **Step 6: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/grid -v && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
 Expected: all pass (the real-data test skips without `STL_DATA_DIR`); clean.
 
-- [ ] **Step 7: Run the census and the real-data check**
+- [x] **Step 7: Run the census and the real-data check**
 
 Run: `cd backend && uv run throughline grid census 2964589`
 Expected: `docs/data/events.md` with the event types, snapshot keys and position sampling (median about 2 to 3 s).
@@ -2156,7 +2156,7 @@ For three games, note the feed time of the first kill and the first dragon (`thr
 Record the offsets in BUILD_LOG.
 If the feed trails the game clock by a steady amount, add a named `CLOCK_OFFSET` in `schema.clock_seconds` and re-run the tests; if it varies, keep the feed's clock and say so in `docs/methodology.md`, because every time in the app is then a feed time.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add backend docs/data/events.md docs/BUILD_LOG.md
@@ -2177,7 +2177,7 @@ Its games have a frame every second for every player; real games are sparser, an
 - Consumes: `throughline.game.model`, `FOUNTAIN` (Task 2).
 - Produces: `GameBuilder(duration=1800.0, winner="blue", patch="16.14", started_at=..., champions=None, game_id="g1", tournament="Test Cup")` with chainable `at(pid, t, x, y, alive=True)`, `walk(pid, t0, t1, start, end)`, `dead(pid, t0, t1)`, `gold_lead(side, amount, t0, t1)`, `kill(t, killer, victim, x, y, assists=())`, `spawn(t, kind, x=None, y=None)`, `objective(t, kind, by, x=None, y=None)`, `structure(t, kind, lane, by)`, `plate(t, lane, by, tier=1)`, `item(t, pid, item: str)`, and `build() -> Game`. Default frames: every player every second at their fountain, alive, gold `500 + 6 * t`, level `min(18, 1 + int(t // 90))`. A game without `spawn` calls has no spawn records, and objective instances fall back to the spawn schedule (Task 7).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `backend/tests/game/test_builder.py`:
 
@@ -2207,12 +2207,12 @@ def test_walk_and_gold_lead() -> None:
     assert red_after.gold - blue_after.gold == 200  # 1000 spread over 5 players
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest tests/game/test_builder.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.game.builder'`
 
-- [ ] **Step 3: Implement the builder**
+- [x] **Step 3: Implement the builder**
 
 `backend/throughline/game/builder.py`:
 
@@ -2388,12 +2388,12 @@ class GameBuilder:
         )
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/game -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
