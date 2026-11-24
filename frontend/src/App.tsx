@@ -1,12 +1,20 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Footer } from "./components/Footer";
+import { HomePage } from "./pages/HomePage";
+import { ReplayPage } from "./pages/ReplayPage";
 
-function App() {
+export default function App() {
   return (
-    <>
-      <h1>Throughline</h1>
-      <Footer />
-    </>
+    <BrowserRouter>
+      <div className="flex min-h-screen flex-col">
+        <div className="flex-1">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/replay/:gameId" element={<ReplayPage />} />
+          </Routes>
+        </div>
+        <Footer />
+      </div>
+    </BrowserRouter>
   );
 }
-
-export default App;
