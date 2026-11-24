@@ -127,3 +127,13 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (standard-tier subagent) in WebStorm + Playwright.
 - What worked: Added `scripts/e2e-backend.sh`, `frontend/playwright.config.ts`, `frontend/e2e/loop.spec.ts`, and the `e2e` job in `.github/workflows/ci.yml`; both end-to-end tests passed, responsive overflow fixes landed across Draft/Plan/Review pages, and 5 screenshots were captured into `docs/screenshots/`.
 - What had to be fixed: Made the E2E API port configurable via `TL_E2E_PORT` (defaulting to 8000 for CI) to avoid colliding with a local service on port 8000, switched `vite.config.ts` to Vite's `loadEnv` so strict TypeScript compiles without `@types/node`, and added optional `PLAYWRIGHT_CHANNEL` so local runs on Node 26 can use installed Chrome while CI uses bundled Chromium.
+
+## 2026-11-24 - Task 25 (polish and screenshots): responsive check and captures
+- Tool: Junie (fast-tier coding subagent) in WebStorm + Playwright Chrome.
+- What worked: Checked Home, Draft, Plan, and Review at 1440, 1024, and 375 px with zero overflow and Riot footer present everywhere, and captured all 5 PNGs into `docs/screenshots/`.
+- What had to be fixed: Constrained the replay canvas width and flex containers in `ReplayPlayer.tsx`, `ReviewPage.tsx`, and `ReviewList.tsx` after the first 375 px check caught horizontal overflow.
+
+## 2026-11-24 - Task 26: README, methodology, AI_SHOWCASE and Devpost draft
+- Tool: Junie (standard-tier subagent).
+- What worked: Wrote `README.md`, `docs/methodology.md`, `AI_SHOWCASE.md`, and `docs/devpost.md` grounded in the real 1,738-game ingest, `docs/data/events.md`, `validation.json` (587 holdout sides), and `docs/BUILD_LOG.md`, with zero em dashes and verbatim Riot legal notice.
+- What had to be fixed: Nothing; left explicit placeholders for the hosted demo URL, repository URL, and YouTube demo video link to be filled in once deployed and recorded.

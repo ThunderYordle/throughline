@@ -9185,7 +9185,7 @@ git commit -m "test(e2e): the plan-and-review loop; polish pass"
 - Create: `docs/methodology.md`, `AI_SHOWCASE.md`, `docs/devpost.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Sections, in this order, one sentence per line:
 1. One-line pitch and a hero screenshot of the Review page.
@@ -9196,7 +9196,7 @@ Sections, in this order, one sentence per line:
 6. Data: the hackathon's GRID starter data (not in this repository; its license limits it to the hackathon), Riot Data Dragon assets.
 7. License (AGPL-3.0) and the Riot notice, verbatim.
 
-- [ ] **Step 2: Methodology**
+- [x] **Step 2: Methodology**
 
 `docs/methodology.md`, sections:
 1. The problem and the approach (from the spec).
@@ -9208,7 +9208,7 @@ Sections, in this order, one sentence per line:
 7. Hand checks: the VOD comparisons from BUILD_LOG, summarised (how many verdicts and moments were right).
 8. Limits: sample sizes, patches, what the feed cannot show (minion waves, cooldowns, comms).
 
-- [ ] **Step 3: AI_SHOWCASE.md**
+- [x] **Step 3: AI_SHOWCASE.md**
 
 Written from `docs/BUILD_LOG.md`:
 1. Setup: which JetBrains tools, the `.junie/AGENTS.md` rules and why each exists.
@@ -9216,13 +9216,13 @@ Written from `docs/BUILD_LOG.md`:
 3. What worked and what did not, honestly.
 4. Numbers: commits and tasks done mostly by Junie, tests written test-first, time from spec to deploy.
 
-- [ ] **Step 4: Devpost text and video**
+- [x] **Step 4: Devpost text and video**
 
 `docs/devpost.md`: the submission text (inspiration, what it does, how we built it, challenges, accomplishments, what we learned, what is next), the JetBrains tools section, the links (repo, live demo, video, methodology, AI_SHOWCASE).
 
 Record the video to the spec's script, under 3 minutes (aim for 2:50): no team logos, no copyrighted music, no broadcast footage; upload to YouTube as Public; check it plays logged out.
 
-- [ ] **Step 5: Final checks and commit**
+- [x] **Step 5: Final checks and commit**
 
 - The repository's About section shows the AGPL-3.0 license.
 - The live demo works logged out, in a private window, on a phone.
