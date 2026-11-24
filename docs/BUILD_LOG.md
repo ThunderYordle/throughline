@@ -32,3 +32,23 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Task 5.
 - What worked: Implemented `game/index.py` (frame lookup, 20 s gap interpolation, gold diffs, proximity) and `tests/game/test_index.py` test-first with all checks passing.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 5 (Step 9): full dataset ingest
+- Tool: Junie orchestrator + DuckDB CLI check.
+- What worked: Ingested all 1,738 parseable games across 20 tournaments (LCK, LEC, LTA, LCS; patches 15.1 to 16.17) into a 126 MB `backend/data/throughline.duckdb`; 1 expected failure (`3ac8f0c2-a0fc-4995-9ce1-8f4d31815c63`: blue has 6 players with a champion).
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 7: objective instances and setups
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `game/setups.py`, 5 unit tests, and the real-data spawn test; verified against all 1,738 ingested games that every game has spawns and no objective is taken before its first spawn.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 8: fight detection
+- Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Tasks 7 and 10.
+- What worked: Implemented `game/fights.py` and `tests/game/test_fights.py` test-first with all checks passing.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 10: frontend shell and replay player
+- Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 7 and 8.
+- What worked: Implemented `types.ts`, `api.ts`, `lib/time.ts`, `lib/ddragon.ts`, `map/transform.ts`, `replay/clock.ts`, `replay/draw.ts`, `ReplayPlayer.tsx`, `HomePage.tsx`, and `ReplayPage.tsx` test-first; ESLint, TypeScript, 7 Vitest assertions, and Vite production build all passed.
+- What had to be fixed: Nothing.

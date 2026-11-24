@@ -2866,7 +2866,7 @@ def ingest(event: str | None = None, since: str | None = None) -> None:
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check . && uv run ruff format --check .`
 Expected: all pass, clean.
 
-- [ ] **Step 9: Ingest the real dataset**
+- [x] **Step 9: Ingest the real dataset**
 
 Run: `cd backend && uv run throughline ingest`
 Expected: about 2 minutes; `added 1738 games`, 1 failure (`3ac8f0c2-...`: a side with six players who have a champion), a DuckDB file of about 130 MB in `backend/data/`.
@@ -3102,7 +3102,7 @@ Real games carry their own spawn events, so instances come from them: spawn time
 `SPAWNS` is only the fallback for games without spawn records, which in practice means `GameBuilder` games.
 The feed has no wards, so a setup is who was near the pit and when each team first had three there; there is no vision count.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/game/test_setups.py`:
 
@@ -3209,12 +3209,12 @@ def test_every_game_has_spawns_and_nothing_is_taken_before_it_spawns() -> None:
     assert row is not None and row[0] == row[1]
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/game/test_setups.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/game/setups.py`:
 
@@ -3342,12 +3342,12 @@ def setup_for(index: GameIndex, instance: ObjectiveInstance) -> Setup | None:
     )
 ```
 
-- [ ] **Step 4: Run the tests, then the real-data check**
+- [x] **Step 4: Run the tests, then the real-data check**
 
 Run: `cd backend && uv run pytest tests/game -v && TL_DATA_DIR=data uv run pytest -m realdata tests/game -v`
 Expected: all pass. On the real data, no objective is taken before its first spawn and every game has spawn records.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
@@ -3364,7 +3364,7 @@ git commit -m "feat(game): objective instances from the feed's spawns, and setup
 - Consumes: `GameIndex`, `dist`, `other`.
 - Produces: `FIGHT_GAP = 15.0`, `FIGHT_JOIN_RADIUS = 3000.0`, `PRESENT_RADIUS = 2500.0`, `kill_side(game, kill) -> Side`, `Fight(start, end, x, y, kills: dict[Side, int], present: dict[Side, int])` with `winner() -> Side | None`, `detect_fights(index) -> list[Fight]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `backend/tests/game/test_fights.py`:
 
@@ -3392,12 +3392,12 @@ def test_kills_close_in_time_and_space_form_one_fight() -> None:
     assert fights[1].kills == {"blue": 0, "red": 1}
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd backend && uv run pytest tests/game/test_fights.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/game/fights.py`:
 
@@ -3463,16 +3463,16 @@ def detect_fights(index: GameIndex) -> list[Fight]:
     return fights
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/game -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Hand-check on real games**
+- [x] **Step 5: Hand-check on real games**
 
 For 5 real games, list the fights (`detect_fights`) and compare start times, kill counts and winners with the VODs. Log the results and any threshold change in BUILD_LOG.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend
@@ -3779,7 +3779,7 @@ git commit -m "feat(api): games, champions and replay payload"
   - `useDdragon(): { iconFor(champion: string): string | undefined; mapUrl: string }`.
   - Routes: `/` (HomePage), `/replay/:gameId?start=&end=` (ReplayPage).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `frontend/src/lib/time.test.ts`:
 
@@ -3842,12 +3842,12 @@ describe("clock", () => {
 });
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd frontend && npm test`
 Expected: FAIL (modules not found)
 
-- [ ] **Step 3: Implement the pure modules**
+- [x] **Step 3: Implement the pure modules**
 
 `frontend/src/lib/time.ts`:
 
@@ -3895,12 +3895,12 @@ export function seek(s: ClockState, t: number): ClockState {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd frontend && npm test`
 Expected: 3 files pass.
 
-- [ ] **Step 5: Types, API client and Data Dragon**
+- [x] **Step 5: Types, API client and Data Dragon**
 
 `frontend/src/types.ts`:
 
@@ -4009,7 +4009,7 @@ export function useDdragon() {
 }
 ```
 
-- [ ] **Step 6: Drawing and the player**
+- [x] **Step 6: Drawing and the player**
 
 `frontend/src/replay/draw.ts`:
 
@@ -4362,18 +4362,18 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-- [ ] **Step 7: Check it in the browser**
+- [x] **Step 7: Check it in the browser**
 
 Run the API (`cd backend && uv run uvicorn throughline.api.main:app --port 8000`) and `cd frontend && npm run dev`.
 Open `/`, then a game's Replay, then `/replay/<id>?start=280&end=320`.
 Expected: the map renders with icons, trails, objective rings and kill crosses, and icons fade during feed gaps; the clip loops between 4:40 and 5:20; play, speeds and the scrubber work; nothing overflows at 375 px wide. Screenshot it for BUILD_LOG.
 
-- [ ] **Step 8: Lint, types, tests, build**
+- [x] **Step 8: Lint, types, tests, build**
 
 Run: `cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
 Expected: all succeed.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add frontend
