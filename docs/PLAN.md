@@ -6,19 +6,22 @@
 
 **Architecture:** A Python package ingests GRID esports event files into a DuckDB analytics file, extracts per-game and per-participant features, and serves a FastAPI API; plans and reviews are pure functions over those features, and the app's own records (plans, reviews, coach notes) live in SQLite.
 A React + TypeScript frontend draws drafts, plans, reviews and a canvas minimap replay.
-Everything a judge needs runs from a fresh clone, with a synthetic-data mode when no GRID key is available.
+Everything a judge needs runs from a fresh clone, with a synthetic-data mode when the GRID starter data is not cloned.
 
-**Tech Stack:** Python 3.12, uv, FastAPI 0.115.6, DuckDB 1.1.3, pyarrow 18.1.0, Pydantic 2.10.3, httpx 0.28.1, Typer 0.15.1, pytest 8.3.4, ruff 0.8.4, mypy 1.13.0; Node 20, React 18.3.1, Vite 5.4.11, TypeScript 5.6.3, Tailwind 3.4.17, React Router 6.28.0, TanStack Query 5.62.0, Vitest 2.1.8, Playwright 1.49.1.
+**Tech Stack:** Python 3.12, uv, FastAPI 0.115.6, DuckDB 1.1.3, pyarrow 18.1.0, Pydantic 2.10.3, httpx 0.28.1, Typer 0.15.1, zstandard 0.25.0, pytz 2024.2, pytest 8.3.4, ruff 0.8.4, mypy 1.13.0; Node 24 (LTS), React 18.3.1, Vite 5.4.11, TypeScript 5.6.3, Tailwind 3.4.17, React Router 6.28.0, TanStack Query 5.62.0, Vitest 2.1.8, Playwright 1.49.1.
 
 **Spec:** `docs/SPEC.md` (already in the repo). Read it before Task 1.
 
 ## Global Constraints
 
 - License: AGPL-3.0, full text in `LICENSE` at the repository root, so GitHub shows it in the About section.
-- No GRID data in git, ever: `data/` is ignored; tests use synthetic games; tests on real data are marked `realdata` and skip when `TL_DATA_DIR` is unset.
+- GRID data: the hackathon's starter repository, cloned next to this one at `../stl-hackathon-2026-grid-starter` (`STL_DATA_DIR`), read in place and never copied in.
+- No GRID data in git, ever, nor anything built from it (decompressed files, extracts, databases): `data/` and the starter's patterns are ignored, CI fails if such a file is tracked, and every commit step checks the staged files first.
+- Tests use synthetic games (`GameBuilder`, `FeedBuilder`); tests on real data are marked `realdata` and skip when the data is absent.
+- The data's license ends with the hackathon (judging included): the data is used for this project only, and AI tools that touch it run with training and retention opt-outs on.
 - Every GRID field name lives in `backend/throughline/grid/schema.py` and nowhere else.
-- Coordinates are game units: x and y from 0 to 15000, y is GRID's `z`, the blue base is bottom left at (0, 0).
-- Times are float seconds from game start everywhere in Python and TypeScript; formatted as `m:ss` only in text.
+- Coordinates are game units: x and y from 0 to 15000 as the feed gives them, the blue base is bottom left at (0, 0).
+- Times are float seconds on the feed's game clock everywhere in Python and TypeScript; formatted as `m:ss` only in text.
 - Gold differences are always from the named side's point of view (positive means that side is ahead).
 - No team logos anywhere; teams show by name. Champion icons and the minimap image come from Riot's Data Dragon.
 - Riot notice, verbatim, in the app footer and the README: "Throughline isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc."
@@ -36,28 +39,28 @@ README.md                             what, screenshots, run, ingest, Riot notic
 AI_SHOWCASE.md                        bonus prize write-up (Task 26)
 Dockerfile, scripts/start.sh          deployment (Task 25)
 .github/workflows/ci.yml              lint, types, tests, build
-.junie/guidelines.md                  Junie's project rules
+.junie/AGENTS.md                      Junie's project rules (read before the legacy guidelines.md)
 .idea/runConfigurations/*.xml         shared run configurations
 docs/SPEC.md                          the design spec
 docs/PLAN.md                          this implementation plan
 docs/BUILD_LOG.md                     tool-use log
-docs/data/events.md                   GRID event census (Task 2)
+docs/data/events.md                   GRID event census (Task 3)
 docs/methodology.md                   approach and validation (Task 26)
 backend/
   pyproject.toml
   throughline/
-    cli.py                            typer app: grid census, ingest, build, validate, seed, serve
+    cli.py                            typer app: grid census, ingest, build, validate, seed
     settings.py                       env settings
+    grid/source.py                    the starter data: series index, streamed .jsonl.zst
     grid/schema.py                    GRID field names and small readers
-    grid/client.py                    Central Data, Series State, File Download
     grid/census.py                    event census for docs/data/events.md
-    grid/parser.py                    events JSONL -> Game
-    grid/ingest.py                    tournaments -> series -> games -> store
+    grid/parser.py                    series feed -> one Game per game
+    grid/ingest.py                    starter data -> store
     game/model.py                     Game and its records
+    game/roles.py                     role inference (the feed has no roles)
     game/builder.py                   GameBuilder for tests and synthetic data
     game/geometry.py                  map constants, frames, halves, lanes, pits
-    game/index.py                     GameIndex: frames by time, gold, proximity
-    game/wards.py                     ward lifetimes and queries
+    game/index.py                     GameIndex: frames, interpolated positions, gold, proximity
     game/setups.py                    objective instances and setups
     game/fights.py                    fight detection
     store/analytics.py                DuckDB store
@@ -81,7 +84,7 @@ backend/
     api/routes_plans.py               plans
     api/routes_reviews.py             reviews, validation
     api/replay.py                     replay payload
-  tests/                              mirrors the package
+  tests/                              mirrors the package; tests/grid/feed.py builds GRID feeds
 frontend/
   package.json, vite.config.ts, tailwind.config.js, index.html
   src/
@@ -101,15 +104,15 @@ frontend/
 ### Task 1: Repository scaffold, tooling and CI
 
 **Files:**
-- Create: `LICENSE`, `README.md`, `.gitignore`, `docs/BUILD_LOG.md`, `.junie/guidelines.md`, `.github/workflows/ci.yml`
+- Create: `LICENSE`, `README.md`, `.gitignore`, `docs/BUILD_LOG.md`, `.junie/AGENTS.md`, `.github/workflows/ci.yml`
 - Create: `backend/pyproject.toml`, `backend/throughline/__init__.py`, `backend/throughline/settings.py`, `backend/throughline/api/__init__.py`, `backend/throughline/api/app.py`
 - Create: `frontend/` (Vite React TS scaffold), `frontend/src/components/Footer.tsx`
 - Test: `backend/tests/test_app.py`
 
 **Interfaces:**
-- Produces: `throughline.settings.Settings` (fields `analytics_db: Path`, `app_db: Path`, `data_dir: Path`, `grid_api_key: str | None`, `frontend_dist: Path | None`), `Settings.from_env()`; `throughline.api.app.create_app(settings: Settings) -> FastAPI` with `GET /api/health`.
+- Produces: `throughline.settings.Settings` (fields `data_dir: Path`, `analytics_db: Path`, `app_db: Path`, `stl_data_dir: Path | None`, `frontend_dist: Path | None`), `Settings.from_env()` (`STL_DATA_DIR` defaults to `../stl-hackathon-2026-grid-starter` next to the repository); `throughline.api.app.create_app(settings: Settings) -> FastAPI` with `GET /api/health`.
 
-- [ ] **Step 1: Create the repository files**
+- [x] **Step 1: Create the repository files**
 
 `LICENSE`: the full AGPL-3.0 text from https://www.gnu.org/licenses/agpl-3.0.txt.
 
@@ -128,6 +131,11 @@ __pycache__/
 .ruff_cache/
 node_modules/
 frontend/dist/
+# Sky's The Limit 2026 hackathon data: licensed, must not be committed
+stl-hackathon-2026-grid-starter/
+*.zst
+*.jsonl
+*.parquet
 frontend/test-results/
 frontend/playwright-report/
 .idea/workspace.xml
@@ -150,7 +158,7 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - What had to be fixed:
 ```
 
-`.junie/guidelines.md`:
+`.junie/AGENTS.md`:
 
 ```markdown
 # Throughline: guidelines for Junie
@@ -158,23 +166,26 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 Read `docs/SPEC.md` and the implementation plan before changing code.
 
 ## Stack
-- Backend: Python 3.12 in `backend/`, managed with uv. FastAPI, DuckDB, SQLite, Pydantic 2, Typer.
+- Backend: Python 3.12 in `backend/`, managed with uv. FastAPI, DuckDB, SQLite, Pydantic 2, Typer, zstandard.
+- Data: the hackathon's GRID starter repository at `../stl-hackathon-2026-grid-starter` (`STL_DATA_DIR`), one `.jsonl.zst` series feed per file. `docs/data/events.md` says what it carries.
 - Frontend: React 18 + TypeScript + Vite in `frontend/`, Tailwind, React Router, TanStack Query.
 
 ## Rules
 - Test first: write the failing test, run it, implement, run it again.
 - Analysis code is pure functions over `throughline.game.model.Game`; I/O only in `cli.py`, `grid/`, `store/` and `api/`.
 - Every GRID field name lives in `throughline/grid/schema.py`.
-- Coordinates are game units (0 to 15000, y is GRID's z, blue base bottom left). Times are float seconds.
+- Coordinates are game units (0 to 15000, as the feed gives x and y, blue base bottom left). Times are float seconds on the feed's clock.
 - Gold differences are from the named side's point of view.
 - Every threshold is a named constant at the top of its module.
-- Never commit anything under `data/` or any GRID data; tests use `throughline.game.builder.GameBuilder`.
+- Never commit GRID data or anything built from it (`.zst`, `.jsonl`, `.parquet`, `.sqlite`, `.duckdb`, copies of `meta/`), even in a private branch. Never `git add -A` blindly: check `git diff --cached --name-only` first. Stop and tell the human if data was ever staged.
+- Tests use `GameBuilder` (games) and `tests/grid/feed.py` (raw feeds); real-data tests are marked `realdata`.
+- The feed has no wards and no roles, and positions arrive every few seconds: ask `GameIndex.position`, which may say unknown; never assume a frame every second.
 - No team logos. Champion icons and the minimap come from Data Dragon.
 - Prose: no em dashes; one sentence per line in Markdown.
 - Commits: Conventional Commits, no AI co-author trailers.
 
 ## Commands
-- Backend tests: `cd backend && uv run pytest`
+- Backend tests: `cd backend && uv run pytest` (real data: `uv run pytest -m realdata`)
 - Lint and types: `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
 - Frontend: `cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
 ```
@@ -194,7 +205,7 @@ Built for the Cloud9 x JetBrains "Sky's the Limit" hackathon.
 Throughline isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 ```
 
-- [ ] **Step 2: Create the backend project**
+- [x] **Step 2: Create the backend project**
 
 `backend/pyproject.toml`:
 
@@ -211,6 +222,8 @@ dependencies = [
   "pydantic==2.10.3",
   "httpx==0.28.1",
   "typer==0.15.1",
+  "zstandard==0.25.0",
+  "pytz==2024.2",  # DuckDB needs it to return TIMESTAMPTZ values
 ]
 
 [dependency-groups]
@@ -218,7 +231,6 @@ dev = [
   "pytest==8.3.4",
   "ruff==0.8.4",
   "mypy==1.13.0",
-  "respx==0.22.0",
 ]
 
 [project.scripts]
@@ -239,9 +251,13 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 strict = true
 packages = ["throughline"]
 
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["realdata: needs ingested GRID data (set TL_DATA_DIR)"]
+markers = ["realdata: needs the GRID starter data (STL_DATA_DIR) or an ingested database (TL_DATA_DIR)"]
 ```
 
 `backend/throughline/__init__.py`: empty. `backend/throughline/api/__init__.py`: empty.
@@ -255,13 +271,17 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# The GRID starter data is cloned next to this repository, never inside it: its license forbids
+# committing it.
+DEFAULT_STL_DIR = Path(__file__).resolve().parents[3] / "stl-hackathon-2026-grid-starter"
+
 
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
     analytics_db: Path
     app_db: Path
-    grid_api_key: str | None
+    stl_data_dir: Path | None
     frontend_dist: Path | None
 
     @classmethod
@@ -272,12 +292,12 @@ class Settings:
             data_dir=data_dir,
             analytics_db=Path(os.environ.get("TL_ANALYTICS_DB", data_dir / "throughline.duckdb")),
             app_db=Path(os.environ.get("TL_APP_DB", data_dir / "app.sqlite")),
-            grid_api_key=os.environ.get("TL_GRID_API_KEY") or None,
+            stl_data_dir=Path(os.environ.get("STL_DATA_DIR", DEFAULT_STL_DIR)),
             frontend_dist=Path(dist) if dist else None,
         )
 ```
 
-- [ ] **Step 3: Write the failing test**
+- [x] **Step 3: Write the failing test**
 
 `backend/tests/test_app.py`:
 
@@ -295,7 +315,7 @@ def make_settings(tmp_path: Path) -> Settings:
         data_dir=tmp_path,
         analytics_db=tmp_path / "a.duckdb",
         app_db=tmp_path / "app.sqlite",
-        grid_api_key=None,
+        stl_data_dir=None,
         frontend_dist=None,
     )
 
@@ -307,12 +327,12 @@ def test_health(tmp_path: Path) -> None:
     assert response.json() == {"ok": True}
 ```
 
-- [ ] **Step 4: Run it to verify it fails**
+- [x] **Step 4: Run it to verify it fails**
 
 Run: `cd backend && uv sync && uv run pytest tests/test_app.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.api.app'`
 
-- [ ] **Step 5: Implement**
+- [x] **Step 5: Implement**
 
 `backend/throughline/api/app.py`:
 
@@ -337,12 +357,12 @@ def create_app(settings: Settings) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 6: Run the test, lint and types**
+- [x] **Step 6: Run the test, lint and types**
 
 Run: `cd backend && uv run pytest -v && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
 Expected: 1 passed; no lint or type errors.
 
-- [ ] **Step 7: Scaffold the frontend**
+- [x] **Step 7: Scaffold the frontend**
 
 Run: `npm create vite@5.5.5 frontend -- --template react-ts`, then in `frontend/`:
 `npm install react@18.3.1 react-dom@18.3.1 react-router-dom@6.28.0 @tanstack/react-query@5.62.0`
@@ -419,7 +439,7 @@ Replace `frontend/src/App.tsx` with a placeholder that renders `<h1>Throughline<
 Run: `cd frontend && npm run lint && npm run typecheck && npm run build`
 Expected: all succeed.
 
-- [ ] **Step 8: CI**
+- [x] **Step 8: CI**
 
 `.github/workflows/ci.yml`:
 
@@ -427,6 +447,15 @@ Expected: all succeed.
 name: ci
 on: [push, pull_request]
 jobs:
+  no-grid-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No GRID data or anything built from it is tracked
+        run: |
+          if git ls-files | grep -Ei '\.(zst|jsonl|parquet|sqlite|duckdb)$|stl-hackathon-2026-grid-starter'; then
+            echo "GRID data is tracked: remove it from history before pushing"; exit 1
+          fi
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
@@ -446,7 +475,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+        with: { node-version: 24, cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
@@ -454,11 +483,11 @@ jobs:
       - run: npm run build
 ```
 
-- [ ] **Step 9: Shared run configurations**
+- [x] **Step 9: Shared run configurations**
 
 In PyCharm, create run configurations "API" (`uvicorn throughline.api.main:app --reload --port 8000`, working directory `backend`; `throughline.api.main` arrives in Task 10), "Backend tests" (pytest in `backend/tests`), and in WebStorm "Frontend dev" (`npm run dev`). Tick "Store as project file" for each so they land in `.idea/runConfigurations/`.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add -A
@@ -469,950 +498,42 @@ git commit -m "chore: scaffold backend, frontend, CI, license and Junie guidelin
 
 ## Phase 1: Data
 
-### Task 2: GRID client and event census
+The hackathon's GRID data is a GitHub repository of compressed event feeds, cloned next to this one: `../stl-hackathon-2026-grid-starter` (override with `STL_DATA_DIR`).
+Only `lol/` and `meta/` are needed: `git clone --filter=blob:none --sparse https://github.com/cloud9esports/stl-hackathon-2026-grid-starter.git && cd stl-hackathon-2026-grid-starter && git sparse-checkout set lol meta` (355 MB).
+Its license forbids committing the data or anything built from it: nothing under it, no decompressed copy, no extract and no database built from it ever enters this repository.
 
-The census tells us which events and fields the hackathon data really carries, before any parser code depends on them.
+What the feed carries was verified by hand on 2026-11-19 against 1,739 games; the census in Task 3 makes that repeatable.
+The facts every task below depends on:
+
+- One file per series (`lol/events_{seriesId}_grid.jsonl.zst`), each line an envelope of events; every event carries a `seriesState` snapshot taken after it.
+- Partial snapshots hold only the current game, full ones (`includesFullState`) every game of the series; champions (`character`) appear only in full ones.
+- Every snapshot has all ten players' `position`, `alive` and `totalMoneyEarned`, so positions arrive with events: median 2 s apart, 90th percentile about 8 s, worst gaps 60 to 110 s.
+- No ward events at all; `visionScore` changes only in full snapshots (a few per game), so it cannot measure vision around an objective.
+- `roles` is always empty: roles are inferred (Task 2).
+- Epic monster spawns are events (`game-respawned-ATierNPC`, `game-respawned-STierNPC`) with the monster's position; first spawns move between seasons (baron 24:40 in 2025, 19:40 in 2026 on the feed's clock).
+- The feed's clock is integer seconds and reads a few seconds behind the broadcast timer at known spawns (dragon spawns at 4:54); Task 3 measures it against VODs.
+- Turret plate events name lane and turret tier (`player-completed-destroyTurretPlateBot1`), from a player or a team.
+- Levels come from `player-completed-increaseLevel` events; 2026 games reach level 20.
+- A benched substitute can appear as a sixth player without a champion.
+
+### Task 2: Game model, geometry and role inference
 
 **Files:**
-- Create: `backend/throughline/grid/__init__.py`, `backend/throughline/grid/client.py`, `backend/throughline/grid/census.py`, `backend/throughline/cli.py`
-- Create: `docs/data/events.md` (generated, keys and counts only, no values)
-- Test: `backend/tests/grid/test_client.py`, `backend/tests/grid/test_census.py`
+- Create: `backend/throughline/game/__init__.py`, `backend/throughline/game/model.py`, `backend/throughline/game/geometry.py`, `backend/throughline/game/roles.py`
+- Test: `backend/tests/__init__.py`, `backend/tests/game/__init__.py`, `backend/tests/game/test_geometry.py`, `backend/tests/game/test_roles.py`
 
 **Interfaces:**
-- Produces:
-  - `GridClient(api_key: str, http: httpx.Client | None = None)` with `tournaments(name_contains: str) -> list[TournamentRef]`, `series(tournament_id: str) -> list[SeriesRef]`, `series_state(series_id: str) -> dict[str, Any]`, `game_events(series_id: str, game_number: int) -> bytes` (JSONL bytes, unzipped when GRID sends a zip).
-  - `TournamentRef(id: str, name: str)`, `SeriesRef(id: str, tournament: str, start: str)` (frozen dataclasses).
-  - `census(lines: Iterable[bytes | str]) -> dict[str, SchemaCensus]`, `SchemaCensus(count: int, keys: set[str], nested: dict[str, set[str]])`, `census_markdown(result: dict[str, SchemaCensus]) -> str`.
-  - CLI: `throughline grid census --series ID --game N`.
+- Produces (`throughline.game.model`): types `Side`, `Role`, `Lane`, `ObjectiveKind`, `StructureKind`; constants `SIDES`, `ROLES`, `LANES`, `ROLE_LANE: dict[Role, Lane | None]`, `LANE_ROLES: dict[Lane, tuple[Role, ...]]`; `other(side) -> Side`; frozen dataclasses `Participant(pid, side, role, champion, player, player_id)`, `Frame(t, pid, x, y, alive, gold, level)`, `Kill(t, killer: int | None, victim, assists: tuple[int, ...], x, y)`, `Spawn(t, kind, x: float | None, y: float | None)`, `Objective(t, kind, by: Side, x: float | None, y: float | None)`, `Structure(t, kind, lane: Lane | None, by: Side)`, `Plate(t, lane, by: Side, tier: int = 1)`, `ItemPurchase(t, pid, item: str)`, `GameMeta(game_id, series_id, game_number, tournament, started_at: datetime, teams: dict[Side, str])`; dataclass `Game(meta, patch, duration, winner, participants, frames, kills, spawns, objectives, structures, plates, items)` with `side_of(pid) -> Side`, `participant(pid) -> Participant`, `player(side, role) -> Participant`, `champions(side) -> dict[Role, str]`.
+- Produces (`throughline.game.geometry`): `MAP_MAX = 15000.0`, `FOUNTAIN: dict[Side, tuple[float, float]]`, `PITS: dict[str, tuple[float, float]]` (`"dragon"`, `"baron"`), `PIT_RADIUS = 2500.0`, `Point`, `dist(a, b) -> float`, `to_side_frame(x, y, side) -> tuple[float, float]`, `half_of(x, y) -> Literal["top", "bot"]`, `lane_at(x, y) -> Lane | None`, `objective_center(kind: ObjectiveKind, objective: Objective | None = None) -> tuple[float, float] | None`.
+- Produces (`throughline.game.roles`): `RoleEvidence(player_id, lane_share: dict[Lane, float], offlane_share, scuttles, support_item)`, `role_score(evidence, role) -> float`, `assign_roles(team: Sequence[RoleEvidence]) -> dict[str, Role]`.
+
+`pid` is 1-5 for blue and 6-10 for red, in `ROLES` order: the parser assigns it after inferring roles, so every later task can rely on it.
+`Frame` is one observation; frames are irregular, and `GameIndex` (Task 6) interpolates between them.
+Grubs are one `Spawn` and one `Objective` record per grub.
 
 - [ ] **Step 1: Write the failing tests**
 
-`backend/tests/grid/__init__.py`: empty.
-
-`backend/tests/grid/test_census.py`:
-
-```python
-import json
-
-from throughline.grid.census import census, census_markdown
-
-
-def test_census_counts_schemas_and_keys() -> None:
-    lines = [
-        json.dumps({"rfc461Schema": "stats_update", "gameTime": 1000,
-                    "participants": [{"participantID": 1, "position": {"x": 1, "z": 2}}]}),
-        json.dumps({"rfc461Schema": "stats_update", "gameTime": 2000, "participants": []}),
-        json.dumps({"rfc461Schema": "ward_placed", "gameTime": 3000, "placer": 1, "wardType": "sight"}),
-        "",
-    ]
-    result = census(lines)
-    assert result["stats_update"].count == 2
-    assert result["stats_update"].keys == {"rfc461Schema", "gameTime", "participants"}
-    assert result["stats_update"].nested["participants"] == {"participantID", "position"}
-    assert result["ward_placed"].keys == {"rfc461Schema", "gameTime", "placer", "wardType"}
-
-
-def test_census_markdown_lists_keys_without_values() -> None:
-    lines = [json.dumps({"rfc461Schema": "game_end", "gameTime": 1, "winningTeam": 100})]
-    text = census_markdown(census(lines))
-    assert "| game_end | 1 | gameTime, rfc461Schema, winningTeam |" in text
-    assert "100" not in text
-```
-
-`backend/tests/grid/test_client.py`:
-
-```python
-import io
-import zipfile
-
-import httpx
-import respx
-
-from throughline.grid.client import CENTRAL_URL, FILES_URL, GridClient
-
-
-@respx.mock
-def test_tournaments_sends_key_and_parses() -> None:
-    route = respx.post(CENTRAL_URL).mock(return_value=httpx.Response(200, json={
-        "data": {"tournaments": {"edges": [{"node": {"id": "7", "name": "LCK Cup 2026"}}],
-                                 "pageInfo": {"hasNextPage": False, "endCursor": None}}}}))
-    client = GridClient("key")
-    result = client.tournaments("LCK")
-    assert [t.name for t in result] == ["LCK Cup 2026"]
-    assert route.calls[0].request.headers["x-api-key"] == "key"
-
-
-@respx.mock
-def test_series_paginates() -> None:
-    page1 = {"data": {"allSeries": {
-        "edges": [{"node": {"id": "1", "startTimeScheduled": "2026-01-01T00:00:00Z", "tournament": {"name": "T"}}}],
-        "pageInfo": {"hasNextPage": True, "endCursor": "c1"}}}}
-    page2 = {"data": {"allSeries": {
-        "edges": [{"node": {"id": "2", "startTimeScheduled": "2026-01-02T00:00:00Z", "tournament": {"name": "T"}}}],
-        "pageInfo": {"hasNextPage": False, "endCursor": None}}}}
-    respx.post(CENTRAL_URL).mock(side_effect=[httpx.Response(200, json=page1), httpx.Response(200, json=page2)])
-    assert [s.id for s in GridClient("key").series("7")] == ["1", "2"]
-
-
-@respx.mock
-def test_game_events_unzips() -> None:
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("events.jsonl", b'{"rfc461Schema":"game_end"}\n')
-    respx.get(f"{FILES_URL}/events/riot/series/1/games/1").mock(
-        return_value=httpx.Response(200, content=buffer.getvalue()))
-    assert GridClient("key").game_events("1", 1) == b'{"rfc461Schema":"game_end"}\n'
-
-
-@respx.mock
-def test_game_events_plain_jsonl() -> None:
-    respx.get(f"{FILES_URL}/events/riot/series/1/games/2").mock(
-        return_value=httpx.Response(200, content=b'{"a":1}\n'))
-    assert GridClient("key").game_events("1", 2) == b'{"a":1}\n'
-```
-
-- [ ] **Step 2: Run them to verify they fail**
-
-Run: `cd backend && uv run pytest tests/grid -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid'`
-
-- [ ] **Step 3: Implement**
-
-`backend/throughline/grid/__init__.py`: empty.
-
-`backend/throughline/grid/census.py`:
-
-```python
-from __future__ import annotations
-
-import json
-from collections.abc import Iterable
-from dataclasses import dataclass, field
-
-
-@dataclass
-class SchemaCensus:
-    count: int = 0
-    keys: set[str] = field(default_factory=set)
-    nested: dict[str, set[str]] = field(default_factory=dict)
-
-
-def census(lines: Iterable[bytes | str]) -> dict[str, SchemaCensus]:
-    result: dict[str, SchemaCensus] = {}
-    for raw in lines:
-        text = raw.decode() if isinstance(raw, bytes) else raw
-        if not text.strip():
-            continue
-        event = json.loads(text)
-        name = str(event.get("rfc461Schema", "<none>"))
-        entry = result.setdefault(name, SchemaCensus())
-        entry.count += 1
-        entry.keys.update(event.keys())
-        for key, value in event.items():
-            if isinstance(value, list) and value and isinstance(value[0], dict):
-                bucket = entry.nested.setdefault(key, set())
-                for element in value:
-                    bucket.update(element.keys())
-            elif isinstance(value, dict):
-                entry.nested.setdefault(key, set()).update(value.keys())
-    return result
-
-
-def census_markdown(result: dict[str, SchemaCensus]) -> str:
-    lines = [
-        "# GRID event census",
-        "",
-        "Event types and field names seen in one game (no values).",
-        "",
-        "| Schema | Count | Keys |",
-        "|---|---|---|",
-    ]
-    for name in sorted(result):
-        entry = result[name]
-        lines.append(f"| {name} | {entry.count} | {', '.join(sorted(entry.keys))} |")
-    lines += ["", "## Nested keys", ""]
-    for name in sorted(result):
-        for key, nested in sorted(result[name].nested.items()):
-            lines.append(f"- `{name}.{key}`: {', '.join(sorted(nested))}")
-    return "\n".join(lines) + "\n"
-```
-
-`backend/throughline/grid/client.py`:
-
-```python
-from __future__ import annotations
-
-import io
-import zipfile
-from dataclasses import dataclass
-from typing import Any
-from urllib.parse import quote
-
-import httpx
-
-CENTRAL_URL = "https://api.grid.gg/central-data/graphql"
-SERIES_STATE_URL = "https://api.grid.gg/live-data-feed/series-state/graphql"
-FILES_URL = "https://api.grid.gg/file-download"
-LOL_TITLE_ID = 3
-TIMEOUT_SECONDS = 120.0
-
-TOURNAMENTS_QUERY = """
-query Tournaments($name: String!, $after: Cursor) {
-  tournaments(first: 50, after: $after, filter: { name: { contains: $name }, titleId: 3 }) {
-    edges { node { id name } }
-    pageInfo { hasNextPage endCursor }
-  }
-}
-"""
-
-SERIES_QUERY = """
-query Series($tournament: ID!, $after: Cursor) {
-  allSeries(first: 50, after: $after, filter: { tournamentId: $tournament, types: ESPORTS },
-            orderBy: StartTimeScheduled, orderDirection: ASC) {
-    edges { node { id startTimeScheduled tournament { name } } }
-    pageInfo { hasNextPage endCursor }
-  }
-}
-"""
-
-SERIES_STATE_QUERY = """
-query SeriesState($id: ID!) {
-  seriesState(id: $id) {
-    id startedAt finished
-    games { sequenceNumber finished teams { name side won } }
-  }
-}
-"""
-
-
-@dataclass(frozen=True)
-class TournamentRef:
-    id: str
-    name: str
-
-
-@dataclass(frozen=True)
-class SeriesRef:
-    id: str
-    tournament: str
-    start: str
-
-
-class GridError(RuntimeError):
-    pass
-
-
-class GridClient:
-    def __init__(self, api_key: str, http: httpx.Client | None = None) -> None:
-        self._http = http or httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=True)
-        self._headers = {"x-api-key": api_key}
-
-    def _graphql(self, url: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
-        response = self._http.post(url, json={"query": query, "variables": variables}, headers=self._headers)
-        response.raise_for_status()
-        body = response.json()
-        if body.get("errors"):
-            raise GridError(str(body["errors"]))
-        data: dict[str, Any] = body["data"]
-        return data
-
-    def _paged(self, url: str, query: str, root: str, variables: dict[str, Any]) -> list[dict[str, Any]]:
-        nodes: list[dict[str, Any]] = []
-        after: str | None = None
-        while True:
-            data = self._graphql(url, query, {**variables, "after": after})[root]
-            nodes += [edge["node"] for edge in data["edges"]]
-            if not data["pageInfo"]["hasNextPage"]:
-                return nodes
-            after = data["pageInfo"]["endCursor"]
-
-    def tournaments(self, name_contains: str) -> list[TournamentRef]:
-        nodes = self._paged(CENTRAL_URL, TOURNAMENTS_QUERY, "tournaments", {"name": name_contains})
-        return [TournamentRef(id=str(n["id"]), name=str(n["name"])) for n in nodes]
-
-    def series(self, tournament_id: str) -> list[SeriesRef]:
-        nodes = self._paged(CENTRAL_URL, SERIES_QUERY, "allSeries", {"tournament": tournament_id})
-        return [
-            SeriesRef(id=str(n["id"]), tournament=str(n["tournament"]["name"]), start=str(n["startTimeScheduled"]))
-            for n in nodes
-        ]
-
-    def series_state(self, series_id: str) -> dict[str, Any]:
-        state: dict[str, Any] = self._graphql(SERIES_STATE_URL, SERIES_STATE_QUERY, {"id": series_id})["seriesState"]
-        return state
-
-    def game_events(self, series_id: str, game_number: int) -> bytes:
-        url = f"{FILES_URL}/events/riot/series/{quote(series_id, safe='')}/games/{game_number}"
-        response = self._http.get(url, headers=self._headers)
-        response.raise_for_status()
-        content = response.content
-        if content[:2] != b"PK":
-            return content
-        with zipfile.ZipFile(io.BytesIO(content)) as archive:
-            names = [n for n in archive.namelist() if n.endswith(".jsonl")]
-            if not names:
-                raise GridError(f"no .jsonl in events zip for {series_id} game {game_number}")
-            return archive.read(names[0])
-```
-
-`backend/throughline/cli.py`:
-
-```python
-from __future__ import annotations
-
-from pathlib import Path
-
-import typer
-
-from throughline.grid.census import census, census_markdown
-from throughline.grid.client import GridClient
-from throughline.settings import Settings
-
-app = typer.Typer(no_args_is_help=True)
-grid_app = typer.Typer(no_args_is_help=True)
-app.add_typer(grid_app, name="grid")
-
-
-def _client(settings: Settings) -> GridClient:
-    if not settings.grid_api_key:
-        raise typer.BadParameter("set TL_GRID_API_KEY")
-    return GridClient(settings.grid_api_key)
-
-
-@grid_app.command("census")
-def grid_census(series: str, game: int = 1, out: Path = Path("../docs/data/events.md")) -> None:
-    """Write the event types and field names of one game to docs/data/events.md."""
-    settings = Settings.from_env()
-    raw = _client(settings).game_events(series, game)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(census_markdown(census(raw.splitlines())))
-    typer.echo(f"wrote {out}")
-```
-
-- [ ] **Step 4: Run the tests**
-
-Run: `cd backend && uv run pytest tests/grid -v && uv run mypy throughline && uv run ruff check .`
-Expected: 6 passed, clean.
-
-- [ ] **Step 5: Run the census on real data**
-
-With the hackathon key in `TL_GRID_API_KEY`, find one recent series (`uv run python -c "from throughline.grid.client import GridClient; import os; c=GridClient(os.environ['TL_GRID_API_KEY']); t=c.tournaments('LCK'); print(t[:5]); print(c.series(t[0].id)[:3])"`), then:
-
-Run: `cd backend && uv run throughline grid census --series <ID> --game 1`
-Expected: `docs/data/events.md` lists the event types.
-
-If a GraphQL query fails, fix the query text in `client.py` only (GRID's schema explorer shows the exact field names) and adjust the test fixtures to match.
-
-- [ ] **Step 6: Check the census against the spec's Data table**
-
-In `docs/data/events.md`, find and note in `docs/BUILD_LOG.md`:
-- `stats_update.participants`: participant id, team id, champion name, player name, position (`x`, `z`), alive, total gold, level.
-- `champion_kill`: killer, victim, assistants, position.
-- `ward_placed` / `ward_killed`: ward id, placer, ward type, position.
-- `epic_monster_kill`: monster type, dragon subtype, killer team, position.
-- `building_destroyed`: building type, lane, team, turret tier.
-- `turret_plate_destroyed`: lane, team.
-- `item_purchased`: participant id, item id.
-- `game_info`: game version; `game_end`: winning team.
-- Any epic monster spawn event (if present, Task 7 reads spawn times from it).
-
-Every name that differs from Task 3's `schema.py` gets added to the matching tuple there. Missing events trigger the spec's fallbacks, recorded in BUILD_LOG.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add backend docs/data/events.md docs/BUILD_LOG.md
-git commit -m "feat(grid): GRID client and event census"
-```
-
-### Task 3: Game model, GRID schema and the events parser
-
-**Files:**
-- Create: `backend/throughline/game/__init__.py`, `backend/throughline/game/model.py`, `backend/throughline/grid/schema.py`, `backend/throughline/grid/parser.py`
-- Test: `backend/tests/grid/events.py` (raw event builders), `backend/tests/grid/test_parser.py`
-
-**Interfaces:**
-- Produces (`throughline.game.model`): types `Side`, `Role`, `Lane`, `ObjectiveKind`, `StructureKind`; constants `SIDES`, `ROLES`, `LANES`, `ROLE_LANE: dict[Role, Lane | None]`, `LANE_ROLES: dict[Lane, tuple[Role, ...]]`; `other(side) -> Side`; frozen dataclasses `Participant(pid, side, role, champion, player)`, `Frame(t, pid, x, y, alive, gold, level)`, `Kill(t, killer: int | None, victim, assists: tuple[int, ...], x, y)`, `Ward(ward_id, pid, kind, placed_at, x, y, killed_at: float | None)`, `Objective(t, kind, by: Side, x: float | None, y: float | None)`, `Structure(t, kind, lane: Lane | None, by: Side)`, `Plate(t, lane, by: Side)`, `ItemPurchase(t, pid, item_id)`, `GameMeta(game_id, series_id, game_number, tournament, started_at: datetime, teams: dict[Side, str])`; dataclass `Game(meta, patch, duration, winner, participants, frames, kills, wards, objectives, structures, plates, items)` with `side_of(pid) -> Side`, `participant(pid) -> Participant`, `player(side, role) -> Participant`, `champions(side) -> dict[Role, str]`.
-- Produces (`throughline.grid.parser`): `parse_events(lines: Iterable[bytes | str], meta: GameMeta) -> Game`, `ParseError`.
-
-- [ ] **Step 1: Write the model** (no behaviour beyond lookups, tested through the parser)
-
-`backend/throughline/game/__init__.py`: empty.
-
-`backend/throughline/game/model.py`:
-
-```python
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Literal
-
-Side = Literal["blue", "red"]
-Role = Literal["top", "jungle", "mid", "bot", "support"]
-Lane = Literal["top", "mid", "bot"]
-ObjectiveKind = Literal["dragon", "elder", "grubs", "herald", "baron", "atakhan"]
-StructureKind = Literal["turret", "inhibitor", "nexus"]
-
-SIDES: tuple[Side, Side] = ("blue", "red")
-ROLES: tuple[Role, ...] = ("top", "jungle", "mid", "bot", "support")
-LANES: tuple[Lane, ...] = ("top", "mid", "bot")
-ROLE_LANE: dict[Role, Lane | None] = {"top": "top", "jungle": None, "mid": "mid", "bot": "bot", "support": "bot"}
-LANE_ROLES: dict[Lane, tuple[Role, ...]] = {"top": ("top",), "mid": ("mid",), "bot": ("bot", "support")}
-
-
-def other(side: Side) -> Side:
-    return "red" if side == "blue" else "blue"
-
-
-@dataclass(frozen=True)
-class Participant:
-    pid: int
-    side: Side
-    role: Role
-    champion: str
-    player: str
-
-
-@dataclass(frozen=True)
-class Frame:
-    t: float
-    pid: int
-    x: float
-    y: float
-    alive: bool
-    gold: int
-    level: int
-
-
-@dataclass(frozen=True)
-class Kill:
-    t: float
-    killer: int | None
-    victim: int
-    assists: tuple[int, ...]
-    x: float
-    y: float
-
-
-@dataclass(frozen=True)
-class Ward:
-    ward_id: str
-    pid: int
-    kind: str
-    placed_at: float
-    x: float
-    y: float
-    killed_at: float | None
-
-
-@dataclass(frozen=True)
-class Objective:
-    t: float
-    kind: ObjectiveKind
-    by: Side
-    x: float | None
-    y: float | None
-
-
-@dataclass(frozen=True)
-class Structure:
-    t: float
-    kind: StructureKind
-    lane: Lane | None
-    by: Side
-
-
-@dataclass(frozen=True)
-class Plate:
-    t: float
-    lane: Lane
-    by: Side
-
-
-@dataclass(frozen=True)
-class ItemPurchase:
-    t: float
-    pid: int
-    item_id: int
-
-
-@dataclass(frozen=True)
-class GameMeta:
-    game_id: str
-    series_id: str
-    game_number: int
-    tournament: str
-    started_at: datetime
-    teams: dict[Side, str]
-
-
-@dataclass
-class Game:
-    meta: GameMeta
-    patch: str
-    duration: float
-    winner: Side
-    participants: tuple[Participant, ...]
-    frames: list[Frame] = field(default_factory=list)
-    kills: list[Kill] = field(default_factory=list)
-    wards: list[Ward] = field(default_factory=list)
-    objectives: list[Objective] = field(default_factory=list)
-    structures: list[Structure] = field(default_factory=list)
-    plates: list[Plate] = field(default_factory=list)
-    items: list[ItemPurchase] = field(default_factory=list)
-
-    def participant(self, pid: int) -> Participant:
-        for p in self.participants:
-            if p.pid == pid:
-                return p
-        raise KeyError(pid)
-
-    def side_of(self, pid: int) -> Side:
-        return self.participant(pid).side
-
-    def player(self, side: Side, role: Role) -> Participant:
-        for p in self.participants:
-            if p.side == side and p.role == role:
-                return p
-        raise KeyError((side, role))
-
-    def champions(self, side: Side) -> dict[Role, str]:
-        return {p.role: p.champion for p in self.participants if p.side == side}
-```
-
-- [ ] **Step 2: Write the schema module**
-
-`backend/throughline/grid/schema.py` (extend the tuples with any variant the census in Task 2 found):
-
-```python
-"""Every GRID (Riot rfc461) field name used by Throughline. Nothing else reads raw event keys."""
-
-from __future__ import annotations
-
-from collections.abc import Mapping
-from typing import Any
-
-from throughline.game.model import Lane, ObjectiveKind, Side, StructureKind
-
-SCHEMA = "rfc461Schema"
-GAME_TIME = ("gameTime",)  # milliseconds
-
-EV_STATS = "stats_update"
-EV_KILL = "champion_kill"
-EV_WARD_PLACED = "ward_placed"
-EV_WARD_KILLED = "ward_killed"
-EV_MONSTER = "epic_monster_kill"
-EV_BUILDING = "building_destroyed"
-EV_PLATE = "turret_plate_destroyed"
-EV_ITEM = "item_purchased"
-EV_GAME_INFO = "game_info"
-EV_GAME_END = "game_end"
-
-PARTICIPANTS = "participants"
-PARTICIPANT_ID = ("participantID", "participantId")
-TEAM_ID = ("teamID", "teamId")
-CHAMPION = ("championName",)
-PLAYER_NAME = ("playerName", "riotIdGameName", "summonerName")
-ALIVE = ("alive",)
-GOLD = ("totalGold", "goldTotal")
-LEVEL = ("level",)
-POSITION = "position"
-
-KILLER = ("killer", "killerID", "killerId")
-VICTIM = ("victim", "victimID", "victimId")
-ASSISTS = ("assistants", "assists")
-
-WARD_ID = ("wardID", "wardId")
-KILLED_WARD_ID = ("killedWardID", "wardID", "wardId")
-PLACER = ("placer", "placerID", "placerId")
-WARD_TYPE = ("wardType",)
-
-MONSTER_TYPE = ("monsterType",)
-DRAGON_TYPE = ("dragonType", "monsterSubType")
-KILLER_TEAM = ("killerTeamID", "killerTeamId", "killerTeam")
-
-BUILDING_TYPE = ("buildingType",)
-LANE = ("lane",)
-ITEM_ID = ("itemID", "itemId")
-GAME_VERSION = ("gameVersion",)
-WINNING_TEAM = ("winningTeam", "winningTeamID")
-
-TEAM_SIDES: dict[int, Side] = {100: "blue", 200: "red"}
-LANE_NAMES: dict[str, Lane] = {"top": "top", "mid": "mid", "middle": "mid", "bot": "bot", "bottom": "bot"}
-STRUCTURE_NAMES: dict[str, StructureKind] = {"turret": "turret", "inhibitor": "inhibitor", "nexus": "nexus"}
-
-
-def first(obj: Mapping[str, Any], names: tuple[str, ...], default: Any = None) -> Any:
-    for name in names:
-        value = obj.get(name)
-        if value is not None:
-            return value
-    return default
-
-
-def game_time(event: Mapping[str, Any]) -> float:
-    return float(first(event, GAME_TIME, 0)) / 1000.0
-
-
-def position(obj: Mapping[str, Any]) -> tuple[float, float]:
-    pos = obj.get(POSITION) or {}
-    return float(pos.get("x", 0.0)), float(pos.get("z", pos.get("y", 0.0)))
-
-
-def side_of_team(team_id: Any) -> Side | None:
-    try:
-        return TEAM_SIDES.get(int(team_id))
-    except (TypeError, ValueError):
-        return None
-
-
-def lane_of(value: Any) -> Lane | None:
-    return LANE_NAMES.get(str(value).lower()) if value is not None else None
-
-
-def structure_of(value: Any) -> StructureKind | None:
-    text = str(value).lower()
-    for key, kind in STRUCTURE_NAMES.items():
-        if key in text:
-            return kind
-    return None
-
-
-def objective_of(monster_type: Any, subtype: Any) -> ObjectiveKind | None:
-    kind = str(monster_type or "").lower()
-    sub = str(subtype or "").lower()
-    if "dragon" in kind:
-        return "elder" if "elder" in sub else "dragon"
-    if "herald" in kind:
-        return "herald"
-    if "baron" in kind:
-        return "baron"
-    if "grub" in kind or "horde" in kind:
-        return "grubs"
-    if "atakhan" in kind:
-        return "atakhan"
-    return None
-
-
-def patch_of(version: Any) -> str:
-    parts = str(version or "").split(".")
-    return ".".join(parts[:2]) if len(parts) >= 2 else ""
-```
-
-- [ ] **Step 3: Write the raw event builders and the failing parser tests**
-
-`backend/tests/grid/events.py`:
-
-```python
-from __future__ import annotations
-
-import json
-from typing import Any
-
-
-def ev(schema: str, t: float, **fields: Any) -> str:
-    return json.dumps({"rfc461Schema": schema, "gameTime": int(t * 1000), **fields})
-
-
-def stats(t: float, players: list[dict[str, Any]]) -> str:
-    return ev("stats_update", t, participants=players)
-
-
-def player(pid: int, x: float, z: float, gold: int = 500, level: int = 1, alive: bool = True,
-           champion: str | None = None) -> dict[str, Any]:
-    return {
-        "participantID": pid,
-        "teamID": 100 if pid <= 5 else 200,
-        "championName": champion or f"Champ{pid}",
-        "playerName": f"P{pid}",
-        "position": {"x": x, "z": z},
-        "alive": alive,
-        "totalGold": gold,
-        "level": level,
-    }
-```
-
-`backend/tests/grid/test_parser.py`:
-
-```python
-from datetime import UTC, datetime
-
-import pytest
-
-from tests.grid.events import ev, player, stats
-from throughline.game.model import GameMeta
-from throughline.grid.parser import ParseError, parse_events
-
-META = GameMeta("s1-1", "s1", 1, "Test Cup", datetime(2026, 11, 1, tzinfo=UTC), {"blue": "Alpha", "red": "Beta"})
-
-
-def ten(t: float, gold: int = 500) -> str:
-    return stats(t, [player(pid, 100.0 * pid, 200.0, gold=gold) for pid in range(1, 11)])
-
-
-def test_parses_participants_frames_and_result() -> None:
-    lines = [
-        ev("game_info", 0, gameVersion="15.23.712.4321"),
-        ten(1.0),
-        ten(1.4),  # same second: dropped
-        ten(2.0, gold=700),
-        ev("game_end", 1800.5, winningTeam=200),
-    ]
-    game = parse_events(lines, META)
-    assert game.patch == "15.23"
-    assert game.winner == "red"
-    assert game.duration == pytest.approx(1800.5)
-    assert [p.role for p in game.participants[:5]] == ["top", "jungle", "mid", "bot", "support"]
-    assert game.participant(7).side == "red"
-    assert game.participant(3).champion == "Champ3"
-    assert len(game.frames) == 20
-    last = [f for f in game.frames if f.pid == 1][-1]
-    assert (last.t, last.x, last.y, last.gold) == (2.0, 100.0, 200.0, 700)
-
-
-def test_parses_kills_wards_objectives_structures_plates_items() -> None:
-    lines = [
-        ten(1.0),
-        ev("champion_kill", 300, killer=2, victim=8, assistants=[3], position={"x": 5000, "z": 6000}),
-        ev("ward_placed", 310, placer=5, wardID="w1", wardType="sight", position={"x": 9000, "z": 4000}),
-        ev("ward_killed", 400, killedWardID="w1", killer=9),
-        ev("epic_monster_kill", 330, monsterType="dragon", dragonType="fire", killerTeamID=100,
-           position={"x": 9866, "z": 4414}),
-        ev("epic_monster_kill", 2000, monsterType="dragon", dragonType="elder", killerTeamID=200),
-        ev("building_destroyed", 900, buildingType="turret", lane="bot", teamID=200),
-        ev("turret_plate_destroyed", 600, lane="top", teamID=100),
-        ev("item_purchased", 800, participantID=4, itemID=3031),
-        ev("game_end", 2100, winningTeam=100),
-    ]
-    game = parse_events(lines, META)
-    kill = game.kills[0]
-    assert (kill.t, kill.killer, kill.victim, kill.assists, kill.x, kill.y) == (300.0, 2, 8, (3,), 5000.0, 6000.0)
-    ward = game.wards[0]
-    assert (ward.ward_id, ward.pid, ward.kind, ward.placed_at, ward.killed_at) == ("w1", 5, "sight", 310.0, 400.0)
-    assert [(o.kind, o.by) for o in game.objectives] == [("dragon", "blue"), ("elder", "red")]
-    assert (game.structures[0].kind, game.structures[0].lane, game.structures[0].by) == ("turret", "bot", "blue")
-    assert (game.plates[0].lane, game.plates[0].by) == ("top", "red")
-    assert (game.items[0].pid, game.items[0].item_id) == (4, 3031)
-
-
-def test_missing_game_end_is_an_error() -> None:
-    with pytest.raises(ParseError):
-        parse_events([ten(1.0)], META)
-
-
-def test_missing_participants_is_an_error() -> None:
-    with pytest.raises(ParseError):
-        parse_events([ev("game_end", 10, winningTeam=100)], META)
-```
-
-`backend/tests/__init__.py`: empty (so `tests.grid.events` imports work).
-
-- [ ] **Step 4: Run them to verify they fail**
-
-Run: `cd backend && uv run pytest tests/grid/test_parser.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid.parser'`
-
-- [ ] **Step 5: Implement the parser**
-
-`backend/throughline/grid/parser.py`:
-
-```python
-from __future__ import annotations
-
-import json
-from collections.abc import Iterable
-from typing import Any
-
-from throughline.game.model import (
-    ROLES,
-    Frame,
-    Game,
-    GameMeta,
-    ItemPurchase,
-    Kill,
-    Objective,
-    Participant,
-    Plate,
-    Side,
-    Structure,
-    Ward,
-    other,
-)
-from throughline.grid import schema as S
-
-
-class ParseError(ValueError):
-    pass
-
-
-def _int(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_events(lines: Iterable[bytes | str], meta: GameMeta) -> Game:
-    participants: dict[int, Participant] = {}
-    frames: list[Frame] = []
-    kills: list[Kill] = []
-    wards: dict[str, dict[str, Any]] = {}
-    objectives: list[Objective] = []
-    structures: list[Structure] = []
-    plates: list[Plate] = []
-    items: list[ItemPurchase] = []
-    last_second: dict[int, int] = {}
-    patch = ""
-    duration = 0.0
-    winner: Side | None = None
-
-    for raw in lines:
-        text = raw.decode() if isinstance(raw, bytes) else raw
-        if not text.strip():
-            continue
-        event: dict[str, Any] = json.loads(text)
-        kind = event.get(S.SCHEMA)
-        t = S.game_time(event)
-        duration = max(duration, t)
-
-        if kind == S.EV_GAME_INFO:
-            patch = S.patch_of(S.first(event, S.GAME_VERSION)) or patch
-        elif kind == S.EV_STATS:
-            for p in event.get(S.PARTICIPANTS, []):
-                pid = _int(S.first(p, S.PARTICIPANT_ID))
-                if pid is None:
-                    continue
-                if pid not in participants:
-                    side = S.side_of_team(S.first(p, S.TEAM_ID)) or ("blue" if pid <= 5 else "red")
-                    participants[pid] = Participant(
-                        pid=pid,
-                        side=side,
-                        role=ROLES[(pid - 1) % 5],
-                        champion=str(S.first(p, S.CHAMPION, "Unknown")),
-                        player=str(S.first(p, S.PLAYER_NAME, "")),
-                    )
-                second = int(t)
-                if last_second.get(pid) == second:
-                    continue
-                last_second[pid] = second
-                x, y = S.position(p)
-                frames.append(
-                    Frame(
-                        t=float(second),
-                        pid=pid,
-                        x=x,
-                        y=y,
-                        alive=bool(S.first(p, S.ALIVE, True)),
-                        gold=int(S.first(p, S.GOLD, 0)),
-                        level=int(S.first(p, S.LEVEL, 1)),
-                    )
-                )
-        elif kind == S.EV_KILL:
-            victim = _int(S.first(event, S.VICTIM))
-            if victim is None:
-                continue
-            x, y = S.position(event)
-            assists = tuple(a for a in (_int(v) for v in S.first(event, S.ASSISTS, [])) if a is not None)
-            kills.append(Kill(t, _int(S.first(event, S.KILLER)), victim, assists, x, y))
-        elif kind == S.EV_WARD_PLACED:
-            placer = _int(S.first(event, S.PLACER))
-            if placer is None:
-                continue
-            x, y = S.position(event)
-            ward_id = str(S.first(event, S.WARD_ID, f"{placer}-{t}"))
-            wards[ward_id] = {"pid": placer, "kind": str(S.first(event, S.WARD_TYPE, "unknown")),
-                              "t": t, "x": x, "y": y, "killed": None}
-        elif kind == S.EV_WARD_KILLED:
-            ward_id = str(S.first(event, S.KILLED_WARD_ID, ""))
-            if ward_id in wards and wards[ward_id]["killed"] is None:
-                wards[ward_id]["killed"] = t
-        elif kind == S.EV_MONSTER:
-            objective = S.objective_of(S.first(event, S.MONSTER_TYPE), S.first(event, S.DRAGON_TYPE))
-            by = S.side_of_team(S.first(event, S.KILLER_TEAM))
-            if objective is None or by is None:
-                continue
-            pos = event.get(S.POSITION)
-            ox, oy = S.position(event) if pos else (None, None)
-            objectives.append(Objective(t, objective, by, ox, oy))
-        elif kind == S.EV_BUILDING:
-            structure = S.structure_of(S.first(event, S.BUILDING_TYPE))
-            owner = S.side_of_team(S.first(event, S.TEAM_ID))
-            if structure is None or owner is None:
-                continue
-            structures.append(Structure(t, structure, S.lane_of(S.first(event, S.LANE)), other(owner)))
-        elif kind == S.EV_PLATE:
-            lane = S.lane_of(S.first(event, S.LANE))
-            owner = S.side_of_team(S.first(event, S.TEAM_ID))
-            if lane is None or owner is None:
-                continue
-            plates.append(Plate(t, lane, other(owner)))
-        elif kind == S.EV_ITEM:
-            pid = _int(S.first(event, S.PARTICIPANT_ID))
-            item_id = _int(S.first(event, S.ITEM_ID))
-            if pid is not None and item_id is not None:
-                items.append(ItemPurchase(t, pid, item_id))
-        elif kind == S.EV_GAME_END:
-            winner = S.side_of_team(S.first(event, S.WINNING_TEAM))
-
-    if len(participants) != 10:
-        raise ParseError(f"{meta.game_id}: expected 10 participants, found {len(participants)}")
-    if winner is None:
-        raise ParseError(f"{meta.game_id}: no game_end with a winning team")
-
-    return Game(
-        meta=meta,
-        patch=patch,
-        duration=duration,
-        winner=winner,
-        participants=tuple(participants[pid] for pid in sorted(participants)),
-        frames=frames,
-        kills=sorted(kills, key=lambda k: k.t),
-        wards=sorted(
-            (Ward(wid, w["pid"], w["kind"], w["t"], w["x"], w["y"], w["killed"]) for wid, w in wards.items()),
-            key=lambda w: w.placed_at,
-        ),
-        objectives=sorted(objectives, key=lambda o: o.t),
-        structures=sorted(structures, key=lambda s: s.t),
-        plates=sorted(plates, key=lambda p: p.t),
-        items=sorted(items, key=lambda i: i.t),
-    )
-```
-
-- [ ] **Step 6: Run the tests, lint and types**
-
-Run: `cd backend && uv run pytest tests/grid -v && uv run mypy throughline && uv run ruff check .`
-Expected: all pass, clean.
-
-- [ ] **Step 7: Parse one real game**
-
-Write a scratch check (not committed) that parses the game from Task 2 and prints counts per record type, the patch and the winner. Compare kills and the winner with the match's public result. Record the numbers in BUILD_LOG.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add backend
-git commit -m "feat(grid): game model and events parser"
-```
-
-### Task 4: GameBuilder, geometry and wards
-
-`GameBuilder` makes small, exact games for every later test and for the synthetic dataset.
-
-**Files:**
-- Create: `backend/throughline/game/geometry.py`, `backend/throughline/game/wards.py`, `backend/throughline/game/builder.py`
-- Test: `backend/tests/game/__init__.py`, `backend/tests/game/test_geometry.py`, `backend/tests/game/test_wards.py`, `backend/tests/game/test_builder.py`
-
-**Interfaces:**
-- Consumes: `throughline.game.model` (Task 3).
-- Produces:
-  - `geometry`: `MAP_MAX = 15000.0`, `FOUNTAIN: dict[Side, tuple[float, float]]`, `PITS: dict[str, tuple[float, float]]` (`"dragon"`, `"baron"`), `PIT_RADIUS = 2500.0`, `dist(a, b) -> float`, `to_side_frame(x, y, side) -> tuple[float, float]`, `half_of(x, y) -> Literal["top", "bot"]`, `lane_at(x, y) -> Lane | None`, `objective_center(kind: ObjectiveKind, objective: Objective | None = None) -> tuple[float, float] | None`.
-  - `wards`: `WARD_LIFE: dict[str, float]`, `ward_end(ward, duration) -> float`, `wards_near(game, side, point, radius, start, end) -> list[Ward]`.
-  - `builder`: `GameBuilder(duration=1800.0, winner="blue", patch="15.23", started_at=..., champions=None, game_id="g1", tournament="Test Cup")` with chainable `at(pid, t, x, y, alive=True)`, `walk(pid, t0, t1, start, end)`, `dead(pid, t0, t1)`, `gold_lead(side, amount, t0, t1)`, `kill(t, killer, victim, x, y, assists=())`, `ward(t, pid, x, y, kind="sight", killed_at=None)`, `objective(t, kind, by, x=None, y=None)`, `structure(t, kind, lane, by)`, `plate(t, lane, by)`, `item(t, pid, item_id)`, and `build() -> Game`. Default frames: every player every second at their fountain, alive, gold `500 + 6 * t`, level `min(18, 1 + int(t // 90))`.
-
-- [ ] **Step 1: Write the failing tests**
-
-`backend/tests/game/__init__.py`: empty.
+`backend/tests/__init__.py`, `backend/tests/game/__init__.py`: empty (so `tests.grid.feed` and friends import).
 
 `backend/tests/game/test_geometry.py`:
 
@@ -1451,71 +572,216 @@ def test_objective_centers() -> None:
     assert objective_center("dragon") == PITS["dragon"]
     assert objective_center("grubs") == PITS["baron"]
     assert objective_center("atakhan") is None
-    assert objective_center("atakhan", Objective(1200.0, "atakhan", "blue", 7000.0, 5000.0)) == (7000.0, 5000.0)
+    assert objective_center("atakhan", Objective(1200.0, "atakhan", "blue", 7000.0, 5000.0)) == (
+        7000.0,
+        5000.0,
+    )
     assert dist((0.0, 0.0), (3.0, 4.0)) == 5.0
 ```
 
-`backend/tests/game/test_wards.py`:
+`backend/tests/game/test_roles.py`:
 
 ```python
-from throughline.game.builder import GameBuilder
-from throughline.game.wards import ward_end, wards_near
+import pytest
+
+from throughline.game.roles import RoleEvidence, assign_roles
 
 
-def test_ward_end_uses_kill_life_and_duration() -> None:
-    game = (GameBuilder(duration=1000.0)
-            .ward(100.0, 1, 9000.0, 4000.0, kind="sight")
-            .ward(100.0, 2, 9000.0, 4000.0, kind="control", killed_at=300.0)
-            .ward(100.0, 3, 9000.0, 4000.0, kind="control")
-            .build())
-    ends = [ward_end(w, game.duration) for w in game.wards]
-    assert ends == [250.0, 300.0, 1000.0]
+def test_items_lanes_and_scuttles_decide_roles() -> None:
+    team = [
+        RoleEvidence("a", {"bot": 0.8}, 0.1, 0, True),
+        RoleEvidence("b", {"top": 0.9}, 0.1, 0, False),
+        RoleEvidence("c", {}, 0.9, 3, False),
+        RoleEvidence("d", {"bot": 0.9}, 0.0, 0, False),
+        RoleEvidence("e", {"mid": 0.85}, 0.1, 0, False),
+    ]
+    assert assign_roles(team) == {"a": "support", "b": "top", "c": "jungle", "d": "bot", "e": "mid"}
 
 
-def test_wards_near_filters_side_area_window_and_alive() -> None:
-    game = (GameBuilder()
-            .ward(200.0, 5, 9500.0, 4500.0)               # blue, near, alive at 280
-            .ward(100.0, 5, 9500.0, 4500.0)               # blue, placed before window
-            .ward(210.0, 6, 9500.0, 4500.0)               # red
-            .ward(220.0, 4, 2000.0, 2000.0)               # blue, far
-            .ward(230.0, 4, 9600.0, 4400.0, killed_at=250.0)  # blue, dead by 280
-            .build())
-    found = wards_near(game, "blue", (9866.0, 4414.0), 2500.0, 190.0, 280.0)
-    assert [w.placed_at for w in found] == [200.0]
-```
-
-`backend/tests/game/test_builder.py`:
-
-```python
-from throughline.game.builder import GameBuilder
+def test_without_the_support_item_the_bot_laner_has_more_bot_lane_time() -> None:
+    team = [
+        RoleEvidence("a", {"bot": 0.6}, 0.3, 0, False),
+        RoleEvidence("b", {"top": 0.9}, 0.1, 0, False),
+        RoleEvidence("c", {}, 0.9, 2, False),
+        RoleEvidence("d", {"bot": 0.9}, 0.0, 0, False),
+        RoleEvidence("e", {"mid": 0.85}, 0.1, 0, False),
+    ]
+    roles = assign_roles(team)
+    assert (roles["a"], roles["d"]) == ("support", "bot")
 
 
-def test_defaults_fill_every_second_at_fountain() -> None:
-    game = GameBuilder(duration=10.0).build()
-    assert len(game.frames) == 10 * 11
-    first_blue = next(f for f in game.frames if f.pid == 1 and f.t == 5.0)
-    assert (first_blue.x, first_blue.y, first_blue.gold, first_blue.alive) == (500.0, 500.0, 530, True)
-    assert game.champions("blue")["top"] == "Aatrox"
-
-
-def test_walk_and_gold_lead() -> None:
-    game = (GameBuilder(duration=100.0)
-            .walk(2, 10.0, 20.0, (1000.0, 1000.0), (2000.0, 1000.0))
-            .gold_lead("red", 1000, 50.0, 60.0)
-            .build())
-    mid = next(f for f in game.frames if f.pid == 2 and f.t == 15.0)
-    assert (mid.x, mid.y) == (1500.0, 1000.0)
-    red_after = next(f for f in game.frames if f.pid == 6 and f.t == 70.0)
-    blue_after = next(f for f in game.frames if f.pid == 1 and f.t == 70.0)
-    assert red_after.gold - blue_after.gold == 200  # 1000 spread over 5 players
+def test_needs_five_players() -> None:
+    with pytest.raises(ValueError):
+        assign_roles([RoleEvidence("a", {}, 1.0, 0, False)])
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/game -v`
-Expected: FAIL with `ModuleNotFoundError`
+Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.game'`
 
-- [ ] **Step 3: Implement geometry**
+- [ ] **Step 3: Implement the model**
+
+`backend/throughline/game/__init__.py`: empty.
+
+`backend/throughline/game/model.py`:
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Literal
+
+Side = Literal["blue", "red"]
+Role = Literal["top", "jungle", "mid", "bot", "support"]
+Lane = Literal["top", "mid", "bot"]
+ObjectiveKind = Literal["dragon", "elder", "grubs", "herald", "baron", "atakhan"]
+StructureKind = Literal["turret", "inhibitor", "nexus"]
+
+SIDES: tuple[Side, Side] = ("blue", "red")
+ROLES: tuple[Role, ...] = ("top", "jungle", "mid", "bot", "support")
+LANES: tuple[Lane, ...] = ("top", "mid", "bot")
+ROLE_LANE: dict[Role, Lane | None] = {
+    "top": "top",
+    "jungle": None,
+    "mid": "mid",
+    "bot": "bot",
+    "support": "bot",
+}
+LANE_ROLES: dict[Lane, tuple[Role, ...]] = {"top": ("top",), "mid": ("mid",), "bot": ("bot", "support")}
+
+
+def other(side: Side) -> Side:
+    return "red" if side == "blue" else "blue"
+
+
+@dataclass(frozen=True)
+class Participant:
+    """pid is 1-5 for blue and 6-10 for red, in ROLES order; player_id is GRID's player id."""
+
+    pid: int
+    side: Side
+    role: Role
+    champion: str
+    player: str
+    player_id: str
+
+
+@dataclass(frozen=True)
+class Frame:
+    """One observation of a player. The feed samples irregularly (about every 2 s, gaps up to a minute)."""
+
+    t: float
+    pid: int
+    x: float
+    y: float
+    alive: bool
+    gold: int
+    level: int
+
+
+@dataclass(frozen=True)
+class Kill:
+    t: float
+    killer: int | None
+    victim: int
+    assists: tuple[int, ...]
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class Spawn:
+    """An epic monster appearing on the map, as the feed reports it. Grubs spawn as three records."""
+
+    t: float
+    kind: ObjectiveKind
+    x: float | None
+    y: float | None
+
+
+@dataclass(frozen=True)
+class Objective:
+    """An epic monster taken. Grubs are one record per grub."""
+
+    t: float
+    kind: ObjectiveKind
+    by: Side
+    x: float | None
+    y: float | None
+
+
+@dataclass(frozen=True)
+class Structure:
+    t: float
+    kind: StructureKind
+    lane: Lane | None
+    by: Side
+
+
+@dataclass(frozen=True)
+class Plate:
+    """A turret plate taken by `by` in `lane`; tier is the turret's tier as the feed names it."""
+
+    t: float
+    lane: Lane
+    by: Side
+    tier: int = 1
+
+
+@dataclass(frozen=True)
+class ItemPurchase:
+    t: float
+    pid: int
+    item: str
+
+
+@dataclass(frozen=True)
+class GameMeta:
+    game_id: str
+    series_id: str
+    game_number: int
+    tournament: str
+    started_at: datetime
+    teams: dict[Side, str]
+
+
+@dataclass
+class Game:
+    meta: GameMeta
+    patch: str
+    duration: float
+    winner: Side
+    participants: tuple[Participant, ...]
+    frames: list[Frame] = field(default_factory=list)
+    kills: list[Kill] = field(default_factory=list)
+    spawns: list[Spawn] = field(default_factory=list)
+    objectives: list[Objective] = field(default_factory=list)
+    structures: list[Structure] = field(default_factory=list)
+    plates: list[Plate] = field(default_factory=list)
+    items: list[ItemPurchase] = field(default_factory=list)
+
+    def participant(self, pid: int) -> Participant:
+        for p in self.participants:
+            if p.pid == pid:
+                return p
+        raise KeyError(pid)
+
+    def side_of(self, pid: int) -> Side:
+        return self.participant(pid).side
+
+    def player(self, side: Side, role: Role) -> Participant:
+        for p in self.participants:
+            if p.side == side and p.role == role:
+                return p
+        raise KeyError((side, role))
+
+    def champions(self, side: Side) -> dict[Role, str]:
+        return {p.role: p.champion for p in self.participants if p.side == side}
+```
+
+- [ ] **Step 4: Implement geometry**
 
 `backend/throughline/game/geometry.py`:
 
@@ -1532,7 +798,12 @@ FOUNTAIN: dict[Side, tuple[float, float]] = {"blue": (500.0, 500.0), "red": (143
 PITS: dict[str, tuple[float, float]] = {"dragon": (9866.0, 4414.0), "baron": (5007.0, 10471.0)}
 PIT_RADIUS = 2500.0
 OBJECTIVE_PIT: dict[ObjectiveKind, str | None] = {
-    "dragon": "dragon", "elder": "dragon", "grubs": "baron", "herald": "baron", "baron": "baron", "atakhan": None,
+    "dragon": "dragon",
+    "elder": "dragon",
+    "grubs": "baron",
+    "herald": "baron",
+    "baron": "baron",
+    "atakhan": None,
 }
 LANE_PATHS: dict[Lane, tuple[tuple[float, float], ...]] = {
     "top": ((1000.0, 3000.0), (1000.0, 14000.0), (12000.0, 14000.0)),
@@ -1588,41 +859,1360 @@ def objective_center(kind: ObjectiveKind, objective: Objective | None = None) ->
     return None
 ```
 
-- [ ] **Step 4: Implement wards**
+- [ ] **Step 5: Implement role inference**
 
-`backend/throughline/game/wards.py`:
+The feed has no roles.
+Each team's five players are matched to the five roles by the assignment with the highest total score: buying World Atlas marks the support, scuttle kills and time off the lanes mark the jungler, and time in each lane between 1:30 and 8:00 marks the laners.
+On the real data this put the World Atlas buyer in the support role in every one of 117 sampled games.
+
+`backend/throughline/game/roles.py`:
+
+```python
+"""Role inference: the feed carries no roles, so each team's five players are matched to the five roles."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from itertools import permutations
+
+from throughline.game.model import ROLE_LANE, ROLES, Lane, Role
+
+SUPPORT_ITEM_WEIGHT = 3.0  # buying the support item is near-certain evidence
+LANE_WEIGHT = 2.0
+JUNGLE_WEIGHT = 2.0
+SCUTTLE_WEIGHT = 0.5
+MAX_SCUTTLES = 4
+
+
+@dataclass(frozen=True)
+class RoleEvidence:
+    player_id: str
+    lane_share: dict[Lane, float]  # share of early observations in each lane
+    offlane_share: float  # share of early observations in no lane
+    scuttles: int
+    support_item: bool
+
+
+def role_score(evidence: RoleEvidence, role: Role) -> float:
+    if role == "support":
+        return SUPPORT_ITEM_WEIGHT * evidence.support_item + evidence.lane_share.get("bot", 0.0)
+    if role == "jungle":
+        return JUNGLE_WEIGHT * evidence.offlane_share + SCUTTLE_WEIGHT * min(evidence.scuttles, MAX_SCUTTLES)
+    lane = ROLE_LANE[role]
+    assert lane is not None
+    score = LANE_WEIGHT * evidence.lane_share.get(lane, 0.0)
+    if role == "bot":
+        score -= SUPPORT_ITEM_WEIGHT * evidence.support_item
+    return score
+
+
+def assign_roles(team: Sequence[RoleEvidence]) -> dict[str, Role]:
+    """The assignment of the five roles to the five players with the highest total score."""
+    if len(team) != len(ROLES):
+        raise ValueError(f"a team needs {len(ROLES)} players, got {len(team)}")
+    best = max(
+        permutations(ROLES),
+        key=lambda roles: sum(role_score(e, r) for e, r in zip(team, roles, strict=True)),
+    )
+    return {e.player_id: r for e, r in zip(team, best, strict=True)}
+```
+
+- [ ] **Step 6: Run the tests, lint and types**
+
+Run: `cd backend && uv run pytest tests/game -v && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
+Expected: 6 passed; clean.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend
+git commit -m "feat(game): game model, map geometry and role inference"
+```
+
+### Task 3: Starter data, GRID schema, census and the series parser
+
+**Files:**
+- Create: `backend/throughline/grid/__init__.py`, `backend/throughline/grid/source.py`, `backend/throughline/grid/schema.py`, `backend/throughline/grid/census.py`, `backend/throughline/grid/parser.py`, `backend/throughline/cli.py`
+- Create: `docs/data/events.md` (generated: event types, keys and counts, no values)
+- Test: `backend/tests/grid/__init__.py`, `backend/tests/grid/feed.py` (feed builder), `backend/tests/grid/test_source.py`, `backend/tests/grid/test_census.py`, `backend/tests/grid/test_parser.py`, `backend/tests/grid/test_parser_realdata.py`
+
+**Interfaces:**
+- Consumes: `throughline.game.model`, `lane_at`, `FOUNTAIN`, `assign_roles` (Task 2).
+- Produces:
+  - `source`: `SeriesRow(series_id, event, stage, scheduled_start: datetime, teams, file)`, `read_series_index(stl_dir) -> list[SeriesRow]` (oldest first), `read_lines(path) -> Iterator[str]` (streams a `.jsonl.zst`).
+  - `schema`: every GRID key and event type, and small readers (`game_snapshot`, `clock_seconds`, `patch_of`, `position`, `objective_of`, `structure_of`, `plate_of`, ...).
+  - `census`: `Census(events, keys, position_gaps)`, `census(lines) -> Census`, `census_markdown(result, title) -> str`.
+  - `parser`: `SeriesInfo(series_id, tournament, scheduled_start)`, `SeriesParse(games, failures: list[tuple[str, str]])`, `parse_series(lines, info) -> SeriesParse`, `ParseError`.
+  - CLI: `throughline grid census SERIES_ID`.
+- Test helper: `tests.grid.feed.FeedBuilder`, which writes small GRID feeds (envelopes with snapshots) so no test needs real data.
+
+- [ ] **Step 1: Write the feed builder and the failing tests**
+
+`backend/tests/grid/__init__.py`: empty.
+
+`backend/tests/grid/feed.py`:
+
+```python
+"""Builds small GRID series feeds for parser tests: one envelope per event, each with a snapshot."""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Self
+
+TEAM_IDS = {"blue": "100", "red": "200"}
+TEAM_NAMES = {"blue": "Alpha", "red": "Beta"}
+FOUNTAINS = {"blue": (500.0, 500.0), "red": (14300.0, 14300.0)}
+# (player id, role, champion, name), deliberately not in role order.
+PLAYERS: dict[str, list[tuple[str, str, str, str]]] = {
+    "blue": [
+        ("15", "support", "Rakan", "Sup1"),
+        ("11", "top", "Aatrox", "Top1"),
+        ("13", "mid", "Ahri", "Mid1"),
+        ("12", "jungle", "Vi", "Jgl1"),
+        ("14", "bot", "Ezreal", "Bot1"),
+    ],
+    "red": [
+        ("23", "mid", "Orianna", "Mid2"),
+        ("25", "support", "Nautilus", "Sup2"),
+        ("21", "top", "Gnar", "Top2"),
+        ("24", "bot", "Kaisa", "Bot2"),
+        ("22", "jungle", "Sejuani", "Jgl2"),
+    ],
+}
+LANE_SPOTS: dict[str, dict[str, tuple[float, float]]] = {
+    "blue": {
+        "top": (1000.0, 9000.0),
+        "jungle": (4000.0, 8000.0),
+        "mid": (7500.0, 7500.0),
+        "bot": (9000.0, 1000.0),
+        "support": (9500.0, 1200.0),
+    },
+    "red": {
+        "top": (6000.0, 14000.0),
+        "jungle": (11000.0, 7000.0),
+        "mid": (8000.0, 8000.0),
+        "bot": (14000.0, 6000.0),
+        "support": (14000.0, 6500.0),
+    },
+}
+
+
+class FeedBuilder:
+    def __init__(self, series_id: str = "s1") -> None:
+        self.series_id = series_id
+        self.game_id = ""
+        self.game_number = 0
+        self.t = 0
+        self.patch = "16.14"
+        self._lines: list[str] = []
+        self._seq = 0
+        self.pos: dict[str, tuple[float, float]] = {}
+        self.alive: dict[str, bool] = {}
+        self.gold: dict[str, int] = {}
+        self.inventory: dict[str, list[tuple[str, str]]] = {}
+        self.npcs: dict[str, tuple[float, float]] = {}
+        self.players = {side: list(players) for side, players in PLAYERS.items()}
+
+    def lines(self) -> list[str]:
+        return list(self._lines)
+
+    def _snapshot(self, full: bool) -> dict[str, Any]:
+        teams = []
+        for side, players in self.players.items():
+            team: dict[str, Any] = {
+                "id": TEAM_IDS[side],
+                "side": side,
+                "name": TEAM_NAMES[side],
+                "players": [],
+            }
+            for pid, _, champion, name in players:
+                x, y = self.pos[pid]
+                player: dict[str, Any] = {
+                    "id": pid,
+                    "name": name,
+                    "position": {"x": x, "y": y},
+                    "alive": self.alive[pid],
+                    "totalMoneyEarned": self.gold[pid],
+                    "inventory": {"items": [{"id": i, "name": n} for i, n in self.inventory[pid]]},
+                }
+                if full and champion:
+                    player["character"] = {"id": f"c-{champion}", "name": champion}
+                team["players"].append(player)
+            teams.append(team)
+        game: dict[str, Any] = {
+            "id": self.game_id,
+            "sequenceNumber": self.game_number,
+            "clock": {"type": "gameClock", "currentSeconds": self.t},
+            "teams": teams,
+            "nonPlayerCharacters": [
+                {"id": n, "position": {"x": x, "y": y}} for n, (x, y) in self.npcs.items()
+            ],
+        }
+        if full:
+            game["titleVersion"] = {"name": self.patch}
+        return {"id": self.series_id, "games": [game]}
+
+    def event(
+        self, t: int, kind: str, actor: dict[str, Any], target: dict[str, Any], full: bool = False
+    ) -> Self:
+        self.t = t
+        self._seq += 1
+        event = {
+            "id": f"e{self._seq}",
+            "type": kind,
+            "actor": actor,
+            "target": target,
+            "seriesState": self._snapshot(full),
+            "seriesStateDelta": {},
+            "includesFullState": full,
+        }
+        self._lines.append(
+            json.dumps(
+                {
+                    "id": f"env{self._seq}",
+                    "seriesId": self.series_id,
+                    "sequenceNumber": self._seq,
+                    "events": [event],
+                }
+            )
+        )
+        return self
+
+    def bench(self, side: str, player_id: str) -> Self:
+        """A substitute who shows up in snapshots without a champion."""
+        self.players[side].append((player_id, "bench", "", "Sub"))
+        return self
+
+    def start_game(
+        self, game_id: str = "g1", number: int = 1, started_at: str = "2026-07-26T20:24:33Z"
+    ) -> Self:
+        self.game_id, self.game_number = game_id, number
+        self.npcs = {}
+        for side, players in self.players.items():
+            for pid, *_ in players:
+                self.pos[pid], self.alive[pid], self.gold[pid], self.inventory[pid] = (
+                    FOUNTAINS[side],
+                    True,
+                    500,
+                    [],
+                )
+        return self.event(
+            0,
+            "series-started-game",
+            {"type": "series", "id": self.series_id},
+            {
+                "type": "game",
+                "id": game_id,
+                "state": {"id": game_id, "sequenceNumber": number, "startedAt": started_at},
+            },
+            full=True,
+        )
+
+    def tick(self, t: int) -> Self:
+        return self.event(
+            t, "player-used-ability", {"type": "player", "id": "11"}, {"type": "ability", "id": "q"}
+        )
+
+    def laning(self, t0: int, t1: int, step: int) -> Self:
+        """Every player at their lane spot (the jungler off-lane), one snapshot every `step` seconds."""
+        for t in range(t0, t1 + 1, step):
+            for side, players in self.players.items():
+                for pid, role, *_ in players:
+                    self.pos[pid] = LANE_SPOTS[side].get(role, FOUNTAINS[side])
+                    self.gold[pid] += step * 3
+            self.tick(t)
+        return self
+
+    def move(self, t: int, player: str, x: float, y: float) -> Self:
+        self.pos[player] = (x, y)
+        return self.tick(t)
+
+    def kill(
+        self, t: int, killer: str, victim: str, at: tuple[float, float], assists: tuple[str, ...] = ()
+    ) -> Self:
+        self.pos[victim], self.alive[victim] = at, False
+        delta = {
+            "game": {
+                "killAssistsReceivedFromPlayer": [
+                    {"id": f"killAssistsReceivedFromPlayer-{a}", "playerId": a, "killAssistsReceived": 1}
+                    for a in assists
+                ]
+            }
+        }
+        return self.event(
+            t,
+            "player-killed-player",
+            {"type": "player", "id": killer, "stateDelta": delta},
+            {"type": "player", "id": victim},
+        )
+
+    def npc_spawn(self, t: int, npc: str, at: tuple[float, float], tier: str = "ATierNPC") -> Self:
+        self.npcs[npc] = at
+        return self.event(
+            t, f"game-respawned-{tier}", {"type": "game", "id": self.game_id}, {"type": tier, "id": npc}
+        )
+
+    def npc_kill(self, t: int, killer: str, npc: str, tier: str = "ATierNPC") -> Self:
+        return self.event(
+            t, f"player-killed-{tier}", {"type": "player", "id": killer}, {"type": tier, "id": npc}
+        )
+
+    def scuttle(self, t: int, killer: str) -> Self:
+        return self.npc_kill(t, killer, "riftScuttlerBot", tier="BTierNPC")
+
+    def destroy(self, t: int, structure: str, actor: str, by_team: bool = False) -> Self:
+        word = {"turret": "tower", "inhibitor": "fortifier", "nexus": "base"}[structure.split("-")[1]]
+        actor_type = "team" if by_team else "player"
+        return self.event(
+            t,
+            f"{actor_type}-destroyed-{word}",
+            {"type": actor_type, "id": actor},
+            {"type": word, "id": structure},
+        )
+
+    def plate(self, t: int, actor: str, lane: str, tier: int, by_team: bool = False) -> Self:
+        actor_type = "team" if by_team else "player"
+        name = f"destroyTurretPlate{lane.title()}{tier}"
+        return self.event(
+            t, f"{actor_type}-completed-{name}", {"type": actor_type, "id": actor}, {"type": name, "id": name}
+        )
+
+    def level_up(self, t: int, player: str) -> Self:
+        return self.event(
+            t,
+            "player-completed-increaseLevel",
+            {"type": "player", "id": player},
+            {"type": "increaseLevel", "id": "increaseLevel"},
+        )
+
+    def buy(self, t: int, player: str, item_id: str, name: str) -> Self:
+        self.inventory[player].append((item_id, name))
+        return self.event(
+            t, "player-purchased-item", {"type": "player", "id": player}, {"type": "item", "id": item_id}
+        )
+
+    def undo_buy(self, t: int, player: str, item_id: str) -> Self:
+        self.inventory[player] = [(i, n) for i, n in self.inventory[player] if i != item_id]
+        return self.event(
+            t, "player-!purchased-item", {"type": "player", "id": player}, {"type": "item", "id": item_id}
+        )
+
+    def win(self, t: int, side: str) -> Self:
+        game = {"type": "game", "id": self.game_id}
+        self.event(t, "team-won-game", {"type": "team", "id": TEAM_IDS[side]}, game)
+        return self.event(t, "series-ended-game", {"type": "series", "id": self.series_id}, game, full=True)
+
+    def rollback(self, t: int, game_id: str) -> Self:
+        return self.event(
+            t,
+            "series-!started-game",
+            {"type": "series", "id": self.series_id},
+            {"type": "game", "id": game_id},
+        )
+```
+
+`backend/tests/grid/test_source.py`:
+
+```python
+from datetime import UTC, datetime
+from pathlib import Path
+
+import zstandard
+
+from throughline.grid.source import read_lines, read_series_index
+
+INDEX = (
+    "series_id,event,stage,scheduled_start,teams,file\n"
+    "2,LCS - Split 3 2026,Regular Season,2026-07-27T20:00:00Z,C vs D,lol/events_2_grid.jsonl.zst\n"
+    "1,LCK - LCK Cup 2025,Groups,2025-01-15T08:00:00Z,A vs B,lol/events_1_grid.jsonl.zst\n"
+)
+
+
+def test_index_is_read_oldest_first(tmp_path: Path) -> None:
+    (tmp_path / "lol").mkdir()
+    (tmp_path / "lol" / "series.csv").write_text(INDEX)
+    rows = read_series_index(tmp_path)
+    assert [r.series_id for r in rows] == ["1", "2"]
+    assert rows[1].event == "LCS - Split 3 2026"
+    assert rows[1].scheduled_start == datetime(2026, 7, 27, 20, 0, tzinfo=UTC)
+    assert rows[1].file == "lol/events_2_grid.jsonl.zst"
+
+
+def test_read_lines_streams_zstd(tmp_path: Path) -> None:
+    path = tmp_path / "f.jsonl.zst"
+    path.write_bytes(zstandard.ZstdCompressor().compress(b'{"a": 1}\n{"b": 2}\n'))
+    assert [line.strip() for line in read_lines(path)] == ['{"a": 1}', '{"b": 2}']
+```
+
+`backend/tests/grid/test_census.py`:
+
+```python
+from tests.grid.feed import FeedBuilder
+from throughline.grid.census import census, census_markdown
+
+
+def test_census_counts_types_keys_and_position_gaps() -> None:
+    feed = (
+        FeedBuilder()
+        .start_game()
+        .move(10, "11", 1000.0, 2000.0)
+        .move(14, "11", 1200.0, 2000.0)
+        .win(100, "blue")
+    )
+    result = census(feed.lines())
+    assert result.events["series-started-game"] == 1
+    assert result.events["player-used-ability"] == 2
+    assert {"position", "totalMoneyEarned", "character"} <= result.keys["player"]
+    assert 4.0 in result.position_gaps
+
+
+def test_census_markdown_has_types_and_no_values() -> None:
+    feed = FeedBuilder().start_game().win(100, "blue")
+    text = census_markdown(census(feed.lines()), "series s1")
+    assert "| `team-won-game` | 1 |" in text
+    assert "Aatrox" not in text and "Alpha" not in text
+```
+
+`backend/tests/grid/test_parser.py`:
+
+```python
+from datetime import UTC, datetime
+
+from tests.grid.feed import FeedBuilder
+from throughline.grid.parser import SeriesInfo, parse_series
+
+INFO = SeriesInfo("s1", "LCS - Split 3 2026", datetime(2026, 7, 26, 20, 0, tzinfo=UTC))
+
+
+def played(feed: FeedBuilder, game_id: str = "g1", number: int = 1) -> FeedBuilder:
+    """A game through laning: supports buy the support item, junglers take scuttles."""
+    return (
+        feed.start_game(game_id, number)
+        .buy(10, "15", "i-atlas", "World Atlas")
+        .buy(10, "25", "i-atlas", "World Atlas")
+        .laning(100, 480, 20)
+        .scuttle(490, "12")
+        .scuttle(495, "22")
+    )
+
+
+def test_participants_roles_frames_and_result() -> None:
+    feed = played(FeedBuilder()).level_up(500, "13").win(1800, "red")
+    [game] = parse_series(feed.lines(), INFO).games
+    assert (game.meta.game_id, game.meta.game_number, game.meta.tournament) == ("g1", 1, "LCS - Split 3 2026")
+    assert game.meta.started_at == datetime(2026, 7, 26, 20, 24, 33, tzinfo=UTC)
+    assert game.meta.teams == {"blue": "Alpha", "red": "Beta"}
+    assert (game.patch, game.winner, game.duration) == ("16.14", "red", 1800.0)
+    assert [(p.pid, p.role, p.champion) for p in game.participants[:5]] == [
+        (1, "top", "Aatrox"),
+        (2, "jungle", "Vi"),
+        (3, "mid", "Ahri"),
+        (4, "bot", "Ezreal"),
+        (5, "support", "Rakan"),
+    ]
+    assert [p.role for p in game.participants[5:]] == ["top", "jungle", "mid", "bot", "support"]
+    assert (game.participant(10).champion, game.participant(10).player_id) == ("Nautilus", "25")
+    mid = [f for f in game.frames if f.pid == 3]
+    assert (mid[0].t, mid[0].x, mid[0].y, mid[0].gold) == (0.0, 500.0, 500.0, 500)
+    assert (mid[-1].t, mid[-1].level) == (1800.0, 2)
+    assert all(a.t < b.t for a, b in zip(mid, mid[1:], strict=False))
+
+
+def test_kills_spawns_objectives_structures_plates_and_items() -> None:
+    feed = (
+        played(FeedBuilder())
+        .npc_spawn(600, "oceanDrake", (9866.0, 4414.0))
+        .kill(610, "12", "24", (9500.0, 4300.0), assists=("14", "15"))
+        .npc_kill(620, "12", "oceanDrake")
+        .plate(630, "21", "mid", 1)
+        .plate(640, "100", "bot", 1, by_team=True)
+        .destroy(700, "red-turret-bot-1", "14")
+        .destroy(1700, "blue-inhibitor-mid", "200", by_team=True)
+        .buy(800, "13", "i-ldr", "Lord Dominik's Regards")
+        .buy(805, "13", "i-ie", "Infinity Edge")
+        .undo_buy(806, "13", "i-ie")
+        .win(1800, "blue")
+    )
+    [game] = parse_series(feed.lines(), INFO).games
+    kill = game.kills[0]
+    assert (kill.t, kill.killer, kill.victim, kill.assists, kill.x, kill.y) == (
+        610.0,
+        2,
+        9,
+        (4, 5),
+        9500.0,
+        4300.0,
+    )
+    assert [(s.t, s.kind, s.x) for s in game.spawns] == [(600.0, "dragon", 9866.0)]
+    assert [(o.t, o.kind, o.by, o.x) for o in game.objectives] == [(620.0, "dragon", "blue", 9866.0)]
+    assert [(p.lane, p.by, p.tier) for p in game.plates] == [("mid", "red", 1), ("bot", "blue", 1)]
+    assert [(s.kind, s.lane, s.by) for s in game.structures] == [
+        ("turret", "bot", "blue"),
+        ("inhibitor", "mid", "red"),
+    ]
+    assert [(i.t, i.pid, i.item) for i in game.items if i.t > 100] == [(800.0, 3, "Lord Dominik's Regards")]
+
+
+def test_series_splits_games_and_drops_rolled_back_ones() -> None:
+    feed = FeedBuilder().start_game("void", 1).rollback(5, "void")
+    played(feed, "g1", 1).win(1500, "blue")
+    played(feed, "g2", 2).win(1600, "red")
+    result = parse_series(feed.lines(), INFO)
+    assert [(g.meta.game_id, g.meta.game_number, g.winner) for g in result.games] == [
+        ("g1", 1, "blue"),
+        ("g2", 2, "red"),
+    ]
+    assert result.failures == []
+
+
+def test_a_benched_substitute_without_a_champion_is_ignored() -> None:
+    [game] = parse_series(played(FeedBuilder().bench("blue", "16")).win(1500, "blue").lines(), INFO).games
+    assert len(game.participants) == 10
+    assert "16" not in {p.player_id for p in game.participants}
+
+
+def test_unfinished_game_is_a_failure() -> None:
+    result = parse_series(played(FeedBuilder()).lines(), INFO)
+    assert result.games == []
+    assert result.failures == [("g1", "the feed never ends the game")]
+```
+
+`backend/tests/grid/test_parser_realdata.py` (skips without the starter data):
+
+```python
+import csv
+from pathlib import Path
+
+import pytest
+
+from throughline.game.model import Game
+from throughline.grid.parser import SeriesInfo, parse_series
+from throughline.grid.source import read_lines, read_series_index
+from throughline.settings import Settings
+
+pytestmark = pytest.mark.realdata
+STEP = 25  # every 25th series: about 30 series and 70 games, a few seconds
+
+
+def stl_dir() -> Path | None:
+    stl = Settings.from_env().stl_data_dir
+    return stl if stl is not None and (stl / "lol" / "series.csv").exists() else None
+
+
+@pytest.mark.skipif(stl_dir() is None, reason="needs the GRID starter data")
+def test_parsed_games_match_the_metadata() -> None:
+    stl = stl_dir()
+    assert stl is not None
+    with (stl / "meta" / "games.csv").open(encoding="utf-8") as f:
+        meta = {r["game_id"]: r for r in csv.DictReader(f) if r["title"] == "lol"}
+    games: list[Game] = []
+    for row in read_series_index(stl)[::STEP]:
+        info = SeriesInfo(row.series_id, row.event, row.scheduled_start)
+        games += parse_series(read_lines(stl / row.file), info).games
+    assert len(games) > 50
+    supports_with_atlas = 0
+    for game in games:
+        m = meta[game.meta.game_id]
+        winner = m["team1_side"] if m["winner_team_id"] == m["team1_id"] else m["team2_side"]
+        assert (game.winner, game.patch) == (winner, m["patch"]), game.meta.game_id
+        assert [p.pid for p in game.participants] == list(range(1, 11))
+        assert max(f.level for f in game.frames) <= (20 if game.patch.startswith("16.") else 18)
+        assert any(s.kind == "dragon" for s in game.spawns)
+        atlas = {i.pid for i in game.items if i.item == "World Atlas"}
+        supports_with_atlas += all(game.player(side, "support").pid in atlas for side in ("blue", "red"))
+    assert supports_with_atlas / len(games) >= 0.95
+```
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `cd backend && uv run pytest tests/grid -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid'`
+
+- [ ] **Step 3: Implement the source and the schema**
+
+`backend/throughline/grid/__init__.py`: empty.
+
+`backend/throughline/grid/source.py`:
+
+```python
+"""The hackathon's GRID starter data: a local clone, read in place and never copied into this repository."""
+
+from __future__ import annotations
+
+import csv
+import io
+from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+import zstandard
+
+SERIES_INDEX = Path("lol") / "series.csv"
+
+
+@dataclass(frozen=True)
+class SeriesRow:
+    series_id: str
+    event: str
+    stage: str
+    scheduled_start: datetime
+    teams: str
+    file: str
+
+
+def read_series_index(stl_dir: Path) -> list[SeriesRow]:
+    """Every League of Legends series in the starter data, oldest first."""
+    with (stl_dir / SERIES_INDEX).open(newline="", encoding="utf-8") as f:
+        rows = [
+            SeriesRow(
+                series_id=r["series_id"],
+                event=r["event"],
+                stage=r["stage"],
+                scheduled_start=datetime.fromisoformat(r["scheduled_start"].replace("Z", "+00:00")),
+                teams=r["teams"],
+                file=r["file"],
+            )
+            for r in csv.DictReader(f)
+        ]
+    return sorted(rows, key=lambda r: (r.scheduled_start, r.series_id))
+
+
+def read_lines(path: Path) -> Iterator[str]:
+    """Stream the lines of a .jsonl.zst file without decompressing it to disk."""
+    with path.open("rb") as raw, zstandard.ZstdDecompressor().stream_reader(raw) as reader:
+        yield from io.TextIOWrapper(reader, encoding="utf-8")
+```
+
+`backend/throughline/grid/schema.py`:
+
+```python
+"""Every GRID series-event field name and value format Throughline reads. Nothing else touches raw keys."""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Iterator, Mapping
+from datetime import datetime
+from typing import Any
+
+from throughline.game.model import Lane, ObjectiveKind, Side, StructureKind
+
+# Envelope and event
+EVENTS = "events"
+TYPE = "type"
+ACTOR = "actor"
+TARGET = "target"
+ID = "id"
+STATE = "state"
+STATE_DELTA = "stateDelta"
+SERIES_STATE = "seriesState"
+
+# Snapshot: series -> games -> teams -> players
+GAMES = "games"
+CLOCK = "clock"
+CURRENT_SECONDS = "currentSeconds"
+STARTED_AT = "startedAt"
+SEQUENCE = "sequenceNumber"
+TITLE_VERSION = "titleVersion"
+NAME = "name"
+TEAMS = "teams"
+SIDE = "side"
+PLAYERS = "players"
+CHARACTER = "character"
+POSITION = "position"
+ALIVE = "alive"
+GOLD = "totalMoneyEarned"
+INVENTORY = "inventory"
+ITEMS = "items"
+NPCS = "nonPlayerCharacters"
+ACTOR_GAME_DELTA = "game"
+ASSISTS = "killAssistsReceivedFromPlayer"
+ASSIST_PLAYER = "playerId"
+
+TEAM_ACTOR = "team"
+
+# Event types
+EV_GAME_STARTED = "series-started-game"
+EV_GAME_ROLLED_BACK = "series-!started-game"
+EV_GAME_ENDED = "series-ended-game"
+EV_GAME_WON = "team-won-game"
+EV_KILL = "player-killed-player"
+EV_NPC_KILLED = ("player-killed-ATierNPC", "player-killed-STierNPC")
+EV_NPC_SPAWNED = ("game-respawned-ATierNPC", "game-respawned-STierNPC")
+EV_SCUTTLE_KILLED = "player-killed-BTierNPC"
+EV_STRUCTURE_SUFFIXES = ("-destroyed-tower", "-destroyed-fortifier", "-destroyed-base")
+EV_LEVEL = "player-completed-increaseLevel"
+EV_PURCHASE = "player-purchased-item"
+EV_PURCHASE_UNDONE = "player-!purchased-item"
+PLATE_EVENT = re.compile(r"^(player|team)-completed-destroyTurretPlate(Top|Mid|Bot)(\d)$")
+
+SUPPORT_ITEM = "World Atlas"
+
+SIDE_NAMES: dict[str, Side] = {"blue": "blue", "red": "red"}
+LANE_NAMES: dict[str, Lane] = {"top": "top", "mid": "mid", "bot": "bot"}
+STRUCTURE_NAMES: dict[str, StructureKind] = {"turret": "turret", "inhibitor": "inhibitor", "nexus": "nexus"}
+
+
+def timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def game_snapshot(event: Mapping[str, Any], game_id: str) -> Mapping[str, Any] | None:
+    """The state of one game after this event. Partial snapshots hold only the current game."""
+    for game in (event.get(SERIES_STATE) or {}).get(GAMES) or []:
+        if str(game.get(ID)) == game_id:
+            return game  # type: ignore[no-any-return]
+    return None
+
+
+def clock_seconds(game: Mapping[str, Any]) -> int | None:
+    value = (game.get(CLOCK) or {}).get(CURRENT_SECONDS)
+    return int(value) if value is not None else None
+
+
+def patch_of(game: Mapping[str, Any]) -> str:
+    parts = str((game.get(TITLE_VERSION) or {}).get(NAME) or "").split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+def side_of(team: Mapping[str, Any]) -> Side | None:
+    return SIDE_NAMES.get(str(team.get(SIDE, "")).lower())
+
+
+def position(obj: Mapping[str, Any]) -> tuple[float, float] | None:
+    pos = obj.get(POSITION)
+    if not pos or pos.get("x") is None or pos.get("y") is None:
+        return None
+    return float(pos["x"]), float(pos["y"])
+
+
+def character_name(player: Mapping[str, Any]) -> str | None:
+    name = (player.get(CHARACTER) or {}).get(NAME)
+    return str(name) if name else None
+
+
+def players(game: Mapping[str, Any]) -> Iterator[tuple[Mapping[str, Any], Mapping[str, Any]]]:
+    """(team, player) pairs of a game snapshot."""
+    for team in game.get(TEAMS) or []:
+        for player in team.get(PLAYERS) or []:
+            yield team, player
+
+
+def player_position(game: Mapping[str, Any], player_id: str) -> tuple[float, float] | None:
+    for _, player in players(game):
+        if str(player.get(ID)) == player_id:
+            return position(player)
+    return None
+
+
+def npc_position(game: Mapping[str, Any], npc_id: str) -> tuple[float, float] | None:
+    for npc in game.get(NPCS) or []:
+        if str(npc.get(ID)) == npc_id:
+            return position(npc)
+    return None
+
+
+def inventory_names(event: Mapping[str, Any]) -> Iterator[tuple[str, str]]:
+    """(item id, item name) pairs from every inventory in the event's snapshot."""
+    for game in (event.get(SERIES_STATE) or {}).get(GAMES) or []:
+        for _, player in players(game):
+            for item in (player.get(INVENTORY) or {}).get(ITEMS) or []:
+                if item.get(ID) and item.get(NAME):
+                    yield str(item[ID]), str(item[NAME])
+
+
+def assists(actor: Mapping[str, Any]) -> tuple[str, ...]:
+    delta = (actor.get(STATE_DELTA) or {}).get(ACTOR_GAME_DELTA) or {}
+    return tuple(str(a[ASSIST_PLAYER]) for a in delta.get(ASSISTS) or [] if a.get(ASSIST_PLAYER))
+
+
+def objective_of(npc_id: str) -> ObjectiveKind | None:
+    if npc_id == "elderDragon":
+        return "elder"
+    if npc_id.endswith("Drake"):
+        return "dragon"
+    if npc_id.startswith("voidGrub"):
+        return "grubs"
+    if npc_id == "riftHerald":
+        return "herald"
+    if npc_id == "baron":
+        return "baron"
+    if npc_id.endswith("Atakhan"):
+        return "atakhan"
+    return None
+
+
+def is_structure_event(event_type: str) -> bool:
+    return event_type.endswith(EV_STRUCTURE_SUFFIXES)
+
+
+def structure_of(structure_id: str) -> tuple[StructureKind, Lane | None, Side] | None:
+    """`red-turret-mid-1`, `red-turret-base-2`, `blue-inhibitor-top`, `red-nexus` -> (kind, lane, owner)."""
+    parts = structure_id.split("-")
+    owner = SIDE_NAMES.get(parts[0]) if parts else None
+    kind = STRUCTURE_NAMES.get(parts[1]) if len(parts) > 1 else None
+    if owner is None or kind is None:
+        return None
+    lane = LANE_NAMES.get(parts[2]) if len(parts) > 2 else None
+    return kind, lane, owner
+
+
+def plate_of(event_type: str) -> tuple[str, Lane, int] | None:
+    """`player-completed-destroyTurretPlateBot1` -> ("player", "bot", 1)."""
+    match = PLATE_EVENT.match(event_type)
+    if match is None:
+        return None
+    return match.group(1), LANE_NAMES[match.group(2).lower()], int(match.group(3))
+```
+
+- [ ] **Step 4: Implement the census and its command**
+
+`backend/throughline/grid/census.py`:
+
+```python
+"""What one series feed carries: event types, snapshot keys and how often positions update. No values."""
+
+from __future__ import annotations
+
+import json
+import statistics
+from collections import Counter
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Any
+
+from throughline.grid import schema as S
+
+
+@dataclass
+class Census:
+    events: Counter[str] = field(default_factory=Counter)
+    keys: dict[str, set[str]] = field(default_factory=dict)  # "game", "team", "player", "npc", "structure"
+    position_gaps: list[float] = field(default_factory=list)  # seconds between a player's position changes
+
+
+def _add_keys(result: Census, level: str, obj: dict[str, Any]) -> None:
+    result.keys.setdefault(level, set()).update(obj.keys())
+
+
+def census(lines: Iterable[bytes | str]) -> Census:
+    result = Census()
+    last: dict[tuple[str, str], tuple[tuple[float, float], int]] = {}
+    for raw in lines:
+        text = raw.decode() if isinstance(raw, bytes) else raw
+        if not text.strip():
+            continue
+        for event in json.loads(text).get(S.EVENTS) or []:
+            result.events[str(event.get(S.TYPE))] += 1
+            for game in (event.get(S.SERIES_STATE) or {}).get(S.GAMES) or []:
+                _add_keys(result, "game", game)
+                for npc in game.get(S.NPCS) or []:
+                    _add_keys(result, "npc", npc)
+                for structure in game.get("structures") or []:
+                    _add_keys(result, "structure", structure)
+                clock = S.clock_seconds(game)
+                for team, player in S.players(game):
+                    _add_keys(result, "team", dict(team))
+                    _add_keys(result, "player", dict(player))
+                    pos = S.position(player)
+                    if clock is None or clock < 0 or pos is None or game.get("finished"):
+                        continue
+                    key = (str(game.get(S.ID)), str(player.get(S.ID)))
+                    previous = last.get(key)
+                    if previous is None or previous[0] != pos:
+                        if previous is not None and clock > previous[1]:
+                            result.position_gaps.append(float(clock - previous[1]))
+                        last[key] = (pos, clock)
+    return result
+
+
+def census_markdown(result: Census, title: str) -> str:
+    lines = [
+        f"# GRID event census: {title}",
+        "",
+        "Event types, snapshot keys and position sampling (no values).",
+        "",
+    ]
+    if len(result.position_gaps) >= 10:
+        gaps = result.position_gaps
+        deciles = statistics.quantiles(gaps, n=10)
+        lines += [
+            "## Position updates",
+            "",
+            f"Seconds between a player's position changes: median {statistics.median(gaps):g}, "
+            f"90th percentile {deciles[8]:g}, max {max(gaps):g} ({len(gaps)} gaps).",
+            "",
+        ]
+    lines += ["## Event types", "", "| Type | Count |", "|---|---|"]
+    lines += [f"| `{name}` | {count} |" for name, count in result.events.most_common()]
+    lines += ["", "## Snapshot keys", ""]
+    lines += [f"- {level}: {', '.join(sorted(keys))}" for level, keys in sorted(result.keys.items())]
+    return "\n".join(lines) + "\n"
+```
+
+`backend/throughline/cli.py`:
 
 ```python
 from __future__ import annotations
 
-from throughline.game.geometry import Point, dist
-from throughline.game.model import Game, Side, Ward
+from pathlib import Path
 
-WARD_LIFE: dict[str, float] = {"sight": 150.0, "yellowTrinket": 120.0}
+import typer
 
+from throughline.grid.census import census, census_markdown
+from throughline.grid.source import read_lines, read_series_index
+from throughline.settings import Settings
 
-def ward_end(ward: Ward, duration: float) -> float:
-    end = duration
-    if ward.kind in WARD_LIFE:
-        end = min(end, ward.placed_at + WARD_LIFE[ward.kind])
-    if ward.killed_at is not None:
-        end = min(end, ward.killed_at)
-    return end
+app = typer.Typer(no_args_is_help=True)
+grid_app = typer.Typer(no_args_is_help=True)
+app.add_typer(grid_app, name="grid")
 
 
-def wards_near(game: Game, side: Side, point: Point, radius: float, start: float, end: float) -> list[Ward]:
-    """Wards `side` placed within `radius` of `point` between `start` and `end`, still standing at `end`."""
-    return [
-        w
-        for w in game.wards
-        if start <= w.placed_at <= end
-        and game.side_of(w.pid) == side
-        and dist((w.x, w.y), point) <= radius
-        and ward_end(w, game.duration) > end
-    ]
+def _stl_dir(settings: Settings) -> Path:
+    stl = settings.stl_data_dir
+    if stl is None or not (stl / "lol" / "series.csv").exists():
+        raise typer.BadParameter(
+            "GRID starter data not found: clone it next to this repository or set STL_DATA_DIR"
+        )
+    return stl
+
+
+@grid_app.command("census")
+def grid_census(series: str, out: Path = Path("../docs/data/events.md")) -> None:
+    """Write the event types, snapshot keys and position sampling of one series (no values)."""
+    stl = _stl_dir(Settings.from_env())
+    row = next((r for r in read_series_index(stl) if r.series_id == series), None)
+    if row is None:
+        raise typer.BadParameter(f"series {series} is not in lol/series.csv")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(census_markdown(census(read_lines(stl / row.file)), f"series {series}"))
+    typer.echo(f"wrote {out}")
+
 ```
 
-- [ ] **Step 5: Implement the builder**
+- [ ] **Step 5: Implement the parser**
+
+The parser follows the series: `series-started-game` opens a game, `series-!started-game` drops a rolled-back one, `series-ended-game` closes it.
+For every event it reads the current game's snapshot (positions, gold, sides, names, champions, patch) and then the event itself.
+Item names are collected from every inventory in the series and resolved at the end, because a purchase event carries only the item's id.
+
+`backend/throughline/grid/parser.py`:
+
+```python
+"""GRID series feed -> one Game per finished game on the Rift."""
+
+from __future__ import annotations
+
+import json
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field, replace
+from datetime import datetime
+from typing import Any
+
+from throughline.game.geometry import FOUNTAIN, lane_at
+from throughline.game.model import (
+    LANES,
+    ROLES,
+    SIDES,
+    Frame,
+    Game,
+    GameMeta,
+    ItemPurchase,
+    Kill,
+    Lane,
+    Objective,
+    Participant,
+    Plate,
+    Side,
+    Spawn,
+    Structure,
+    other,
+)
+from throughline.game.roles import RoleEvidence, assign_roles
+from throughline.grid import schema as S
+
+ROLE_FROM = 90.0  # role inference reads positions from here...
+ROLE_UNTIL = 480.0  # ...to here, the laning phase
+
+
+class ParseError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class SeriesInfo:
+    series_id: str
+    tournament: str
+    scheduled_start: datetime
+
+
+@dataclass
+class SeriesParse:
+    games: list[Game] = field(default_factory=list)
+    failures: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _Obs:
+    t: float
+    x: float
+    y: float
+    alive: bool
+    gold: int
+    level: int
+
+
+@dataclass(frozen=True)
+class _Kill:
+    t: float
+    killer: str
+    victim: str
+    assists: tuple[str, ...]
+    x: float
+    y: float
+
+
+@dataclass
+class _GameState:
+    """Everything read for one game, keyed by GRID ids until roles turn them into pids."""
+
+    game_id: str
+    number: int
+    started_at: datetime
+    t: float = 0.0
+    patch: str = ""
+    ended: bool = False
+    winner: Side | None = None
+    team_sides: dict[str, Side] = field(default_factory=dict)
+    team_names: dict[Side, str] = field(default_factory=dict)
+    sides: dict[str, Side] = field(default_factory=dict)
+    names: dict[str, str] = field(default_factory=dict)
+    champions: dict[str, str] = field(default_factory=dict)
+    levels: dict[str, int] = field(default_factory=lambda: defaultdict(lambda: 1))
+    scuttles: Counter[str] = field(default_factory=Counter)
+    obs: dict[str, list[_Obs]] = field(default_factory=lambda: defaultdict(list))
+    kills: list[_Kill] = field(default_factory=list)
+    spawns: list[Spawn] = field(default_factory=list)
+    objectives: list[Objective] = field(default_factory=list)
+    structures: list[Structure] = field(default_factory=list)
+    plates: list[Plate] = field(default_factory=list)
+    purchases: list[tuple[float, str, str]] = field(default_factory=list)  # (t, player id, item id)
+
+
+def parse_series(lines: Iterable[bytes | str], info: SeriesInfo) -> SeriesParse:
+    games: dict[str, _GameState] = {}
+    current: _GameState | None = None
+    item_names: dict[str, str] = {}
+
+    for raw in lines:
+        text = raw.decode() if isinstance(raw, bytes) else raw
+        if not text.strip():
+            continue
+        envelope: dict[str, Any] = json.loads(text)
+        for event in envelope.get(S.EVENTS) or []:
+            kind = str(event.get(S.TYPE, ""))
+            target = event.get(S.TARGET) or {}
+            item_names.update(S.inventory_names(event))
+            if kind == S.EV_GAME_STARTED:
+                state = target.get(S.STATE) or {}
+                current = _GameState(
+                    game_id=str(target.get(S.ID)),
+                    number=int(state.get(S.SEQUENCE) or len(games) + 1),
+                    started_at=S.timestamp(state.get(S.STARTED_AT)) or info.scheduled_start,
+                )
+                games[current.game_id] = current
+            elif kind == S.EV_GAME_ROLLED_BACK:
+                games.pop(str(target.get(S.ID)), None)
+                if current is not None and current.game_id == str(target.get(S.ID)):
+                    current = None
+                continue
+            if current is None:
+                continue
+            snapshot = S.game_snapshot(event, current.game_id)
+            if snapshot is None:
+                continue
+            _read_snapshot(current, snapshot)
+            _apply_event(current, kind, event, snapshot)
+            if kind == S.EV_GAME_ENDED:
+                current.ended = True
+                current = None
+
+    result = SeriesParse()
+    for state in sorted(games.values(), key=lambda g: g.number):
+        try:
+            result.games.append(_finish(state, info, item_names))
+        except ParseError as error:
+            result.failures.append((state.game_id, str(error)))
+    return result
+
+
+def _read_snapshot(state: _GameState, game: Mapping[str, Any]) -> None:
+    clock = S.clock_seconds(game)
+    if clock is not None:
+        state.t = max(0.0, float(clock))
+    state.patch = S.patch_of(game) or state.patch
+    for team, player in S.players(game):
+        team_id = str(team.get(S.ID))
+        side = S.side_of(team) or state.team_sides.get(team_id)
+        if side is None:
+            continue
+        state.team_sides[team_id] = side
+        if team.get(S.NAME):
+            state.team_names[side] = str(team[S.NAME])
+        player_id = str(player.get(S.ID))
+        state.sides[player_id] = side
+        if player.get(S.NAME):
+            state.names[player_id] = str(player[S.NAME])
+        champion = S.character_name(player)
+        if champion:
+            state.champions[player_id] = champion
+        pos = S.position(player)
+        if clock is None or clock < 0 or pos is None:
+            continue
+        track = state.obs[player_id]
+        last = track[-1] if track else None
+        gold = player.get(S.GOLD)
+        alive = player.get(S.ALIVE)
+        obs = _Obs(
+            t=state.t,
+            x=pos[0],
+            y=pos[1],
+            alive=bool(alive) if alive is not None else (last.alive if last else True),
+            gold=int(gold) if gold is not None else (last.gold if last else 0),
+            level=state.levels[player_id],
+        )
+        if last is not None and last.t == obs.t:
+            track[-1] = obs
+        else:
+            track.append(obs)
+
+
+def _side_of_actor(state: _GameState, actor: Mapping[str, Any]) -> Side | None:
+    actor_id = str(actor.get(S.ID))
+    if actor.get(S.TYPE) == S.TEAM_ACTOR:
+        return state.team_sides.get(actor_id)
+    return state.sides.get(actor_id)
+
+
+def _apply_event(state: _GameState, kind: str, event: Mapping[str, Any], game: Mapping[str, Any]) -> None:
+    t = state.t
+    actor: Mapping[str, Any] = event.get(S.ACTOR) or {}
+    target: Mapping[str, Any] = event.get(S.TARGET) or {}
+    actor_id, target_id = str(actor.get(S.ID)), str(target.get(S.ID))
+
+    if kind == S.EV_KILL:
+        victim_side = state.sides.get(target_id, "blue")
+        x, y = (
+            S.player_position(game, target_id) or S.player_position(game, actor_id) or FOUNTAIN[victim_side]
+        )
+        state.kills.append(_Kill(t, actor_id, target_id, S.assists(actor), x, y))
+    elif kind in S.EV_NPC_KILLED:
+        objective = S.objective_of(target_id)
+        side = _side_of_actor(state, actor)
+        if objective is not None and side is not None:
+            pos = S.npc_position(game, target_id)
+            state.objectives.append(Objective(t, objective, side, *(pos or (None, None))))
+    elif kind in S.EV_NPC_SPAWNED:
+        objective = S.objective_of(target_id)
+        if objective is not None:
+            pos = S.npc_position(game, target_id)
+            state.spawns.append(Spawn(t, objective, *(pos or (None, None))))
+    elif kind == S.EV_SCUTTLE_KILLED:
+        state.scuttles[actor_id] += 1
+    elif S.is_structure_event(kind):
+        found = S.structure_of(target_id)
+        if found is not None:
+            structure, lane, owner = found
+            state.structures.append(Structure(t, structure, lane, other(owner)))
+    elif (plate := S.plate_of(kind)) is not None:
+        _, lane, tier = plate
+        side = _side_of_actor(state, actor)
+        if side is not None:
+            state.plates.append(Plate(t, lane, side, tier))
+    elif kind == S.EV_LEVEL:
+        state.levels[actor_id] += 1
+        track = state.obs.get(actor_id)
+        if track and track[-1].t == t:
+            track[-1] = replace(track[-1], level=state.levels[actor_id])
+    elif kind == S.EV_PURCHASE:
+        state.purchases.append((t, actor_id, target_id))
+    elif kind == S.EV_PURCHASE_UNDONE:
+        for i in range(len(state.purchases) - 1, -1, -1):
+            if state.purchases[i][1:] == (actor_id, target_id):
+                del state.purchases[i]
+                break
+    elif kind == S.EV_GAME_WON:
+        state.winner = state.team_sides.get(actor_id)
+
+
+def _role_evidence(state: _GameState, player_id: str, item_names: dict[str, str]) -> RoleEvidence:
+    lanes: Counter[Lane | None] = Counter(
+        lane_at(o.x, o.y) for o in state.obs.get(player_id, []) if ROLE_FROM <= o.t <= ROLE_UNTIL and o.alive
+    )
+    total = sum(lanes.values()) or 1
+    return RoleEvidence(
+        player_id=player_id,
+        lane_share={lane: lanes[lane] / total for lane in LANES},
+        offlane_share=lanes[None] / total,
+        scuttles=state.scuttles[player_id],
+        support_item=any(
+            p == player_id and item_names.get(item) == S.SUPPORT_ITEM for _, p, item in state.purchases
+        ),
+    )
+
+
+def _finish(state: _GameState, info: SeriesInfo, item_names: dict[str, str]) -> Game:
+    if not state.ended:
+        raise ParseError("the feed never ends the game")
+    if state.winner is None:
+        raise ParseError("no winner")
+    if set(state.team_names) != set(SIDES):
+        raise ParseError(f"team names for {sorted(state.team_names)} only")
+    pid_of: dict[str, int] = {}
+    participants: list[Participant] = []
+    for side_index, side in enumerate(SIDES):
+        # A benched substitute can appear in the snapshot; only players with a champion played.
+        team = sorted(p for p, s in state.sides.items() if s == side and p in state.champions)
+        if len(team) != len(ROLES):
+            raise ParseError(f"{side} has {len(team)} players with a champion")
+        roles = assign_roles([_role_evidence(state, p, item_names) for p in team])
+        for role_index, role in enumerate(ROLES):
+            player_id = next(p for p, r in roles.items() if r == role)
+            pid = side_index * len(ROLES) + role_index + 1
+            pid_of[player_id] = pid
+            participants.append(
+                Participant(
+                    pid, side, role, state.champions[player_id], state.names.get(player_id, ""), player_id
+                )
+            )
+
+    frames = sorted(
+        (
+            Frame(o.t, pid_of[p], o.x, o.y, o.alive, o.gold, o.level)
+            for p, track in state.obs.items()
+            if p in pid_of
+            for o in track
+        ),
+        key=lambda f: (f.t, f.pid),
+    )
+    kills = [
+        Kill(
+            k.t,
+            pid_of.get(k.killer),
+            pid_of[k.victim],
+            tuple(pid_of[a] for a in k.assists if a in pid_of),
+            k.x,
+            k.y,
+        )
+        for k in state.kills
+        if k.victim in pid_of
+    ]
+    items = [
+        ItemPurchase(t, pid_of[p], item_names.get(item, item))
+        for t, p, item in state.purchases
+        if p in pid_of
+    ]
+    meta = GameMeta(
+        state.game_id, info.series_id, state.number, info.tournament, state.started_at, dict(state.team_names)
+    )
+    return Game(
+        meta=meta,
+        patch=state.patch,
+        duration=state.t,
+        winner=state.winner,
+        participants=tuple(participants),
+        frames=frames,
+        kills=sorted(kills, key=lambda k: k.t),
+        spawns=sorted(state.spawns, key=lambda s: s.t),
+        objectives=sorted(state.objectives, key=lambda o: o.t),
+        structures=sorted(state.structures, key=lambda s: s.t),
+        plates=sorted(state.plates, key=lambda p: p.t),
+        items=sorted(items, key=lambda i: i.t),
+    )
+```
+
+- [ ] **Step 6: Run the tests, lint and types**
+
+Run: `cd backend && uv run pytest tests/grid -v && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
+Expected: all pass (the real-data test skips without `STL_DATA_DIR`); clean.
+
+- [ ] **Step 7: Run the census and the real-data check**
+
+Run: `cd backend && uv run throughline grid census 2964589`
+Expected: `docs/data/events.md` with the event types, snapshot keys and position sampling (median about 2 to 3 s).
+
+Run: `cd backend && uv run pytest -m realdata tests/grid -v`
+Expected: passes against `meta/games.csv` (it reads the default `../stl-hackathon-2026-grid-starter`).
+
+- [ ] **Step 8: Check the clock against VODs**
+
+For three games, note the feed time of the first kill and the first dragon (`throughline grid census` does not print values; use a scratch script, not committed) and compare with the broadcast's in-game timer.
+Record the offsets in BUILD_LOG.
+If the feed trails the game clock by a steady amount, add a named `CLOCK_OFFSET` in `schema.clock_seconds` and re-run the tests; if it varies, keep the feed's clock and say so in `docs/methodology.md`, because every time in the app is then a feed time.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add backend docs/data/events.md docs/BUILD_LOG.md
+! git diff --cached --name-only | grep -Ei '\.(zst|jsonl|parquet|sqlite|duckdb|csv)$' \
+  && git commit -m "feat(grid): starter data source, event census and series parser"
+```
+
+### Task 4: GameBuilder
+
+`GameBuilder` makes small, exact games for every later test and for the synthetic dataset.
+Its games have a frame every second for every player; real games are sparser, and `GameIndex` (Task 6) handles both.
+
+**Files:**
+- Create: `backend/throughline/game/builder.py`
+- Test: `backend/tests/game/test_builder.py`
+
+**Interfaces:**
+- Consumes: `throughline.game.model`, `FOUNTAIN` (Task 2).
+- Produces: `GameBuilder(duration=1800.0, winner="blue", patch="16.14", started_at=..., champions=None, game_id="g1", tournament="Test Cup")` with chainable `at(pid, t, x, y, alive=True)`, `walk(pid, t0, t1, start, end)`, `dead(pid, t0, t1)`, `gold_lead(side, amount, t0, t1)`, `kill(t, killer, victim, x, y, assists=())`, `spawn(t, kind, x=None, y=None)`, `objective(t, kind, by, x=None, y=None)`, `structure(t, kind, lane, by)`, `plate(t, lane, by, tier=1)`, `item(t, pid, item: str)`, and `build() -> Game`. Default frames: every player every second at their fountain, alive, gold `500 + 6 * t`, level `min(18, 1 + int(t // 90))`. A game without `spawn` calls has no spawn records, and objective instances fall back to the spawn schedule (Task 7).
+
+- [ ] **Step 1: Write the failing test**
+
+`backend/tests/game/test_builder.py`:
+
+```python
+from throughline.game.builder import GameBuilder
+
+
+def test_defaults_fill_every_second_at_fountain() -> None:
+    game = GameBuilder(duration=10.0).build()
+    assert len(game.frames) == 10 * 11
+    first_blue = next(f for f in game.frames if f.pid == 1 and f.t == 5.0)
+    assert (first_blue.x, first_blue.y, first_blue.gold, first_blue.alive) == (500.0, 500.0, 530, True)
+    assert game.champions("blue")["top"] == "Aatrox"
+
+
+def test_walk_and_gold_lead() -> None:
+    game = (
+        GameBuilder(duration=100.0)
+        .walk(2, 10.0, 20.0, (1000.0, 1000.0), (2000.0, 1000.0))
+        .gold_lead("red", 1000, 50.0, 60.0)
+        .build()
+    )
+    mid = next(f for f in game.frames if f.pid == 2 and f.t == 15.0)
+    assert (mid.x, mid.y) == (1500.0, 1000.0)
+    red_after = next(f for f in game.frames if f.pid == 6 and f.t == 70.0)
+    blue_after = next(f for f in game.frames if f.pid == 1 and f.t == 70.0)
+    assert red_after.gold - blue_after.gold == 200  # 1000 spread over 5 players
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `cd backend && uv run pytest tests/game/test_builder.py -v`
+Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.game.builder'`
+
+- [ ] **Step 3: Implement the builder**
 
 `backend/throughline/game/builder.py`:
 
@@ -1646,9 +2236,9 @@ from throughline.game.model import (
     Participant,
     Plate,
     Side,
+    Spawn,
     Structure,
     StructureKind,
-    Ward,
 )
 
 DEFAULT_CHAMPIONS: dict[Side, list[str]] = {
@@ -1668,7 +2258,7 @@ class GameBuilder:
         self,
         duration: float = 1800.0,
         winner: Side = "blue",
-        patch: str = "15.23",
+        patch: str = "16.14",
         started_at: datetime = datetime(2026, 11, 1, tzinfo=UTC),
         champions: dict[Side, list[str]] | None = None,
         game_id: str = "g1",
@@ -1684,7 +2274,7 @@ class GameBuilder:
         self._pos: dict[tuple[int, int], tuple[float, float, bool]] = {}
         self._gold_leads: list[tuple[Side, int, float, float]] = []
         self.kills: list[Kill] = []
-        self.wards: list[Ward] = []
+        self.spawns: list[Spawn] = []
         self.objectives: list[Objective] = []
         self.structures: list[Structure] = []
         self.plates: list[Plate] = []
@@ -1712,18 +2302,19 @@ class GameBuilder:
         self._gold_leads.append((side, amount, t0, t1))
         return self
 
-    def kill(self, t: float, killer: int | None, victim: int, x: float, y: float,
-             assists: tuple[int, ...] = ()) -> Self:
+    def kill(
+        self, t: float, killer: int | None, victim: int, x: float, y: float, assists: tuple[int, ...] = ()
+    ) -> Self:
         self.kills.append(Kill(t, killer, victim, assists, x, y))
         return self
 
-    def ward(self, t: float, pid: int, x: float, y: float, kind: str = "sight",
-             killed_at: float | None = None) -> Self:
-        self.wards.append(Ward(f"w{len(self.wards) + 1}", pid, kind, t, x, y, killed_at))
+    def spawn(self, t: float, kind: ObjectiveKind, x: float | None = None, y: float | None = None) -> Self:
+        self.spawns.append(Spawn(t, kind, x, y))
         return self
 
-    def objective(self, t: float, kind: ObjectiveKind, by: Side, x: float | None = None,
-                  y: float | None = None) -> Self:
+    def objective(
+        self, t: float, kind: ObjectiveKind, by: Side, x: float | None = None, y: float | None = None
+    ) -> Self:
         self.objectives.append(Objective(t, kind, by, x, y))
         return self
 
@@ -1731,12 +2322,12 @@ class GameBuilder:
         self.structures.append(Structure(t, kind, lane, by))
         return self
 
-    def plate(self, t: float, lane: Lane, by: Side) -> Self:
-        self.plates.append(Plate(t, lane, by))
+    def plate(self, t: float, lane: Lane, by: Side, tier: int = 1) -> Self:
+        self.plates.append(Plate(t, lane, by, tier))
         return self
 
-    def item(self, t: float, pid: int, item_id: int) -> Self:
-        self.items.append(ItemPurchase(t, pid, item_id))
+    def item(self, t: float, pid: int, item: str) -> Self:
+        self.items.append(ItemPurchase(t, pid, item))
         return self
 
     def _extra_gold(self, side: Side, t: float) -> float:
@@ -1750,8 +2341,14 @@ class GameBuilder:
 
     def build(self) -> Game:
         participants = tuple(
-            Participant(pid, _side(pid), ROLES[(pid - 1) % 5], self.champions[_side(pid)][(pid - 1) % 5],
-                        f"P{pid}")
+            Participant(
+                pid,
+                _side(pid),
+                ROLES[(pid - 1) % 5],
+                self.champions[_side(pid)][(pid - 1) % 5],
+                f"P{pid}",
+                f"grid-{pid}",
+            )
             for pid in range(1, 11)
         )
         frames: list[Frame] = []
@@ -1767,8 +2364,14 @@ class GameBuilder:
                 last[pid] = pos
                 gold = int(500 + 6 * t + self._extra_gold(side, float(t)))
                 frames.append(Frame(float(t), pid, pos[0], pos[1], pos[2], gold, min(18, 1 + t // 90)))
-        meta = GameMeta(self.game_id, self.game_id.split("-")[0], 1, self.tournament, self.started_at,
-                        {"blue": "Blue Team", "red": "Red Team"})
+        meta = GameMeta(
+            self.game_id,
+            self.game_id.split("-")[0],
+            1,
+            self.tournament,
+            self.started_at,
+            {"blue": "Blue Team", "red": "Red Team"},
+        )
         return Game(
             meta=meta,
             patch=self.patch,
@@ -1777,7 +2380,7 @@ class GameBuilder:
             participants=participants,
             frames=frames,
             kills=sorted(self.kills, key=lambda k: k.t),
-            wards=sorted(self.wards, key=lambda w: w.placed_at),
+            spawns=sorted(self.spawns, key=lambda s: s.t),
             objectives=sorted(self.objectives, key=lambda o: o.t),
             structures=sorted(self.structures, key=lambda s: s.t),
             plates=sorted(self.plates, key=lambda p: p.t),
@@ -1785,16 +2388,16 @@ class GameBuilder:
         )
 ```
 
-- [ ] **Step 6: Run the tests, lint and types**
+- [ ] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/game -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add backend
-git commit -m "feat(game): geometry, ward lifetimes and GameBuilder"
+git commit -m "feat(game): GameBuilder for exact test games"
 ```
 
 ### Task 5: Analytics store and ingest
@@ -1805,12 +2408,14 @@ git commit -m "feat(game): geometry, ward lifetimes and GameBuilder"
 - Test: `backend/tests/store/__init__.py`, `backend/tests/store/test_analytics.py`, `backend/tests/grid/test_ingest.py`
 
 **Interfaces:**
-- Consumes: `Game`, `GameBuilder`, `parse_events`, `GridClient` (Tasks 2-4).
+- Consumes: `Game`, `GameBuilder`, `parse_series`, `read_series_index`, `read_lines`, `FeedBuilder` (Tasks 2-4).
 - Produces:
-  - `AnalyticsStore(path: Path, read_only: bool = False)` with `init_schema()`, `has_game(game_id) -> bool`, `write_game(game)`, `load_game(game_id) -> Game`, `list_games(q: str | None = None, limit: int = 50) -> list[GameSummary]`, `game_ids_by_time() -> list[str]`, `latest_patch() -> str | None`, `close()`, and `con` (the DuckDB connection, used by later tasks' queries).
+  - `AnalyticsStore(path: Path, read_only: bool = False)` with `init_schema()`, `has_game(game_id) -> bool`, `has_series(series_id) -> bool`, `write_game(game)`, `load_game(game_id) -> Game`, `list_games(q: str | None = None, limit: int = 50) -> list[GameSummary]`, `game_ids_by_time() -> list[str]`, `latest_patch() -> str | None`, `close()`, and `con` (the DuckDB connection, used by later tasks' queries).
   - `GameSummary(game_id, tournament, started_at, patch, teams: dict[Side, str], winner, champions: dict[Side, dict[Role, str]])` (frozen dataclass).
-  - `meta_from_series_state(state, series: SeriesRef, game_number) -> GameMeta | None`, `ingest(client, store, raw_dir, tournament_query, since: str | None = None) -> IngestReport(added, skipped, failed: list[tuple[str, str]])`.
-  - CLI: `throughline ingest "LCK" --since 2026-01-01`.
+  - `ingest(stl_dir, store, event: str | None = None, since: date | None = None) -> IngestReport(added, skipped_series, failed: list[tuple[str, str]])`.
+  - CLI: `throughline ingest [--event LCS] [--since 2026-01-01]`.
+
+The `games` table has no primary key: DuckDB 1.1 rejects deleting and re-inserting the same key in one transaction, and `write_game` replaces a game exactly that way.
 
 - [ ] **Step 1: Write the failing store tests**
 
@@ -1828,27 +2433,35 @@ from throughline.store.analytics import AnalyticsStore
 def test_round_trip(tmp_path: Path) -> None:
     store = AnalyticsStore(tmp_path / "a.duckdb")
     store.init_schema()
-    game = (GameBuilder(duration=60.0, game_id="s1-1")
-            .kill(30.0, 2, 8, 5000.0, 6000.0, assists=(3, 4))
-            .ward(20.0, 5, 9000.0, 4000.0, killed_at=50.0)
-            .objective(40.0, "dragon", "red", 9866.0, 4414.0)
-            .structure(45.0, "turret", "bot", "blue")
-            .plate(35.0, "top", "red")
-            .item(25.0, 4, 3031)
-            .build())
+    game = (
+        GameBuilder(duration=60.0, game_id="s1-1")
+        .kill(30.0, 2, 8, 5000.0, 6000.0, assists=(3, 4))
+        .spawn(10.0, "dragon", 9866.0, 4414.0)
+        .spawn(12.0, "atakhan")
+        .objective(40.0, "dragon", "red", 9866.0, 4414.0)
+        .structure(45.0, "turret", "bot", "blue")
+        .plate(35.0, "top", "red", tier=2)
+        .item(25.0, 4, "Infinity Edge")
+        .build()
+    )
     store.write_game(game)
     assert store.has_game("s1-1")
+    assert store.has_series("s1") and not store.has_series("s2")
     loaded = store.load_game("s1-1")
     assert loaded.participants == game.participants
     assert loaded.frames == game.frames
     assert loaded.kills == game.kills
-    assert loaded.wards == game.wards
+    assert loaded.spawns == game.spawns
     assert loaded.objectives == game.objectives
     assert loaded.structures == game.structures
     assert loaded.plates == game.plates
     assert loaded.items == game.items
     assert (loaded.patch, loaded.duration, loaded.winner, loaded.meta.teams) == (
-        game.patch, game.duration, game.winner, game.meta.teams)
+        game.patch,
+        game.duration,
+        game.winner,
+        game.meta.teams,
+    )
 
 
 def test_write_replaces_and_lists(tmp_path: Path) -> None:
@@ -1897,30 +2510,29 @@ from throughline.game.model import (
     Plate,
     Role,
     Side,
+    Spawn,
     Structure,
-    Ward,
 )
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS games (
-  game_id TEXT PRIMARY KEY, series_id TEXT, game_number INTEGER, tournament TEXT,
+  game_id TEXT, series_id TEXT, game_number INTEGER, tournament TEXT,
   started_at TIMESTAMPTZ, patch TEXT, duration DOUBLE, winner TEXT, blue_team TEXT, red_team TEXT);
 CREATE TABLE IF NOT EXISTS participants (
-  game_id TEXT, pid INTEGER, side TEXT, role TEXT, champion TEXT, player TEXT);
+  game_id TEXT, pid INTEGER, side TEXT, role TEXT, champion TEXT, player TEXT, player_id TEXT);
 CREATE TABLE IF NOT EXISTS frames (
   game_id TEXT, t DOUBLE, pid INTEGER, x DOUBLE, y DOUBLE, alive BOOLEAN, gold INTEGER, level INTEGER);
 CREATE TABLE IF NOT EXISTS kills (
   game_id TEXT, t DOUBLE, killer INTEGER, victim INTEGER, assists INTEGER[], x DOUBLE, y DOUBLE);
-CREATE TABLE IF NOT EXISTS wards (
-  game_id TEXT, ward_id TEXT, pid INTEGER, kind TEXT, placed_at DOUBLE, x DOUBLE, y DOUBLE, killed_at DOUBLE);
+CREATE TABLE IF NOT EXISTS spawns (game_id TEXT, t DOUBLE, kind TEXT, x DOUBLE, y DOUBLE);
 CREATE TABLE IF NOT EXISTS objectives (
   game_id TEXT, t DOUBLE, kind TEXT, by_side TEXT, x DOUBLE, y DOUBLE);
 CREATE TABLE IF NOT EXISTS structures (game_id TEXT, t DOUBLE, kind TEXT, lane TEXT, by_side TEXT);
-CREATE TABLE IF NOT EXISTS plates (game_id TEXT, t DOUBLE, lane TEXT, by_side TEXT);
-CREATE TABLE IF NOT EXISTS items (game_id TEXT, t DOUBLE, pid INTEGER, item_id INTEGER);
+CREATE TABLE IF NOT EXISTS plates (game_id TEXT, t DOUBLE, lane TEXT, by_side TEXT, tier INTEGER);
+CREATE TABLE IF NOT EXISTS items (game_id TEXT, t DOUBLE, pid INTEGER, item TEXT);
 """
 
-RECORD_TABLES = ("participants", "frames", "kills", "wards", "objectives", "structures", "plates", "items")
+RECORD_TABLES = ("participants", "frames", "kills", "spawns", "objectives", "structures", "plates", "items")
 
 
 @dataclass(frozen=True)
@@ -1948,6 +2560,9 @@ class AnalyticsStore:
     def has_game(self, game_id: str) -> bool:
         return self.con.execute("SELECT 1 FROM games WHERE game_id = ?", [game_id]).fetchone() is not None
 
+    def has_series(self, series_id: str) -> bool:
+        return self.con.execute("SELECT 1 FROM games WHERE series_id = ?", [series_id]).fetchone() is not None
+
     def _insert(self, table: str, rows: list[dict[str, Any]]) -> None:
         if not rows:
             return
@@ -1967,21 +2582,46 @@ class AnalyticsStore:
             m = game.meta
             self.con.execute(
                 "INSERT INTO games VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [gid, m.series_id, m.game_number, m.tournament, m.started_at, game.patch, game.duration,
-                 game.winner, m.teams["blue"], m.teams["red"]],
+                [
+                    gid,
+                    m.series_id,
+                    m.game_number,
+                    m.tournament,
+                    m.started_at,
+                    game.patch,
+                    game.duration,
+                    game.winner,
+                    m.teams["blue"],
+                    m.teams["red"],
+                ],
             )
             self._insert("participants", [{"game_id": gid, **asdict(p)} for p in game.participants])
             self._insert("frames", [{"game_id": gid, **asdict(f)} for f in game.frames])
-            self._insert("kills", [{"game_id": gid, **asdict(k), "assists": list(k.assists)} for k in game.kills])
-            self._insert("wards", [{"game_id": gid, **asdict(w)} for w in game.wards])
-            self._insert("objectives", [
-                {"game_id": gid, "t": o.t, "kind": o.kind, "by_side": o.by, "x": o.x, "y": o.y}
-                for o in game.objectives])
-            self._insert("structures", [
-                {"game_id": gid, "t": s.t, "kind": s.kind, "lane": s.lane, "by_side": s.by}
-                for s in game.structures])
-            self._insert("plates", [
-                {"game_id": gid, "t": p.t, "lane": p.lane, "by_side": p.by} for p in game.plates])
+            self._insert(
+                "kills", [{"game_id": gid, **asdict(k), "assists": list(k.assists)} for k in game.kills]
+            )
+            self._insert("spawns", [{"game_id": gid, **asdict(s)} for s in game.spawns])
+            self._insert(
+                "objectives",
+                [
+                    {"game_id": gid, "t": o.t, "kind": o.kind, "by_side": o.by, "x": o.x, "y": o.y}
+                    for o in game.objectives
+                ],
+            )
+            self._insert(
+                "structures",
+                [
+                    {"game_id": gid, "t": s.t, "kind": s.kind, "lane": s.lane, "by_side": s.by}
+                    for s in game.structures
+                ],
+            )
+            self._insert(
+                "plates",
+                [
+                    {"game_id": gid, "t": p.t, "lane": p.lane, "by_side": p.by, "tier": p.tier}
+                    for p in game.plates
+                ],
+            )
             self._insert("items", [{"game_id": gid, **asdict(i)} for i in game.items])
             self.con.execute("COMMIT")
         except Exception:
@@ -1990,8 +2630,10 @@ class AnalyticsStore:
 
     def load_game(self, game_id: str) -> Game:
         row = self.con.execute(
-            "SELECT series_id, game_number, tournament, started_at, patch, duration, winner, blue_team, red_team "
-            "FROM games WHERE game_id = ?", [game_id]).fetchone()
+            "SELECT series_id, game_number, tournament, started_at, patch, duration, winner, "
+            "blue_team, red_team FROM games WHERE game_id = ?",
+            [game_id],
+        ).fetchone()
         if row is None:
             raise KeyError(game_id)
         series_id, number, tournament, started_at, patch, duration, winner, blue, red = row
@@ -2004,22 +2646,41 @@ class AnalyticsStore:
             patch=patch,
             duration=duration,
             winner=winner,
-            participants=tuple(Participant(*r) for r in rows(
-                "SELECT pid, side, role, champion, player FROM participants WHERE game_id = ? ORDER BY pid")),
-            frames=[Frame(*r) for r in rows(
-                "SELECT t, pid, x, y, alive, gold, level FROM frames WHERE game_id = ? ORDER BY t, pid")],
-            kills=[Kill(t, killer, victim, tuple(assists or ()), x, y) for t, killer, victim, assists, x, y in rows(
-                "SELECT t, killer, victim, assists, x, y FROM kills WHERE game_id = ? ORDER BY t")],
-            wards=[Ward(*r) for r in rows(
-                "SELECT ward_id, pid, kind, placed_at, x, y, killed_at FROM wards WHERE game_id = ? "
-                "ORDER BY placed_at")],
-            objectives=[Objective(*r) for r in rows(
-                "SELECT t, kind, by_side, x, y FROM objectives WHERE game_id = ? ORDER BY t")],
-            structures=[Structure(*r) for r in rows(
-                "SELECT t, kind, lane, by_side FROM structures WHERE game_id = ? ORDER BY t")],
-            plates=[Plate(*r) for r in rows("SELECT t, lane, by_side FROM plates WHERE game_id = ? ORDER BY t")],
-            items=[ItemPurchase(*r) for r in rows(
-                "SELECT t, pid, item_id FROM items WHERE game_id = ? ORDER BY t")],
+            participants=tuple(
+                Participant(*r)
+                for r in rows(
+                    "SELECT pid, side, role, champion, player, player_id FROM participants "
+                    "WHERE game_id = ? ORDER BY pid"
+                )
+            ),
+            frames=[
+                Frame(*r)
+                for r in rows(
+                    "SELECT t, pid, x, y, alive, gold, level FROM frames WHERE game_id = ? ORDER BY t, pid"
+                )
+            ],
+            kills=[
+                Kill(t, killer, victim, tuple(assists or ()), x, y)
+                for t, killer, victim, assists, x, y in rows(
+                    "SELECT t, killer, victim, assists, x, y FROM kills WHERE game_id = ? ORDER BY t"
+                )
+            ],
+            spawns=[Spawn(*r) for r in rows("SELECT t, kind, x, y FROM spawns WHERE game_id = ? ORDER BY t")],
+            objectives=[
+                Objective(*r)
+                for r in rows("SELECT t, kind, by_side, x, y FROM objectives WHERE game_id = ? ORDER BY t")
+            ],
+            structures=[
+                Structure(*r)
+                for r in rows("SELECT t, kind, lane, by_side FROM structures WHERE game_id = ? ORDER BY t")
+            ],
+            plates=[
+                Plate(*r)
+                for r in rows("SELECT t, lane, by_side, tier FROM plates WHERE game_id = ? ORDER BY t")
+            ],
+            items=[
+                ItemPurchase(*r) for r in rows("SELECT t, pid, item FROM items WHERE game_id = ? ORDER BY t")
+            ],
         )
 
     def list_games(self, q: str | None = None, limit: int = 50) -> list[GameSummary]:
@@ -2030,29 +2691,40 @@ class AnalyticsStore:
         )
         params: list[Any] = []
         if q:
-            sql += ("HAVING lower(g.blue_team || ' ' || g.red_team || ' ' || g.tournament || ' ' || "
-                    "string_agg(p.champion, ' ')) LIKE ? ")
+            sql += (
+                "HAVING lower(g.blue_team || ' ' || g.red_team || ' ' || g.tournament || ' ' || "
+                "string_agg(p.champion, ' ')) LIKE ? "
+            )
             params.append(f"%{q.lower()}%")
         sql += "ORDER BY g.started_at DESC LIMIT ?"
         params.append(limit)
         out: list[GameSummary] = []
-        for gid, tournament, started_at, patch, blue, red, winner, picks in self.con.execute(sql, params).fetchall():
+        for gid, tournament, started_at, patch, blue, red, winner, picks in self.con.execute(
+            sql, params
+        ).fetchall():
             champions: dict[Side, dict[Role, str]] = {"blue": {}, "red": {}}
             for entry in picks:
                 side, role, champion = entry.split(":", 2)
-                champions[side][role] = champion  # type: ignore[index]
-            out.append(GameSummary(gid, tournament, started_at, patch, {"blue": blue, "red": red}, winner, champions))
+                champions[side][role] = champion
+            out.append(
+                GameSummary(gid, tournament, started_at, patch, {"blue": blue, "red": red}, winner, champions)
+            )
         return out
 
     def game_ids_by_time(self) -> list[str]:
-        return [r[0] for r in self.con.execute("SELECT game_id FROM games ORDER BY started_at, game_id").fetchall()]
+        return [
+            r[0]
+            for r in self.con.execute("SELECT game_id FROM games ORDER BY started_at, game_id").fetchall()
+        ]
 
     def latest_patch(self) -> str | None:
         row = self.con.execute(
             "SELECT patch FROM games ORDER BY "
             "try_cast(split_part(patch, '.', 1) AS INTEGER) DESC, "
-            "try_cast(split_part(patch, '.', 2) AS INTEGER) DESC LIMIT 1").fetchone()
+            "try_cast(split_part(patch, '.', 2) AS INTEGER) DESC LIMIT 1"
+        ).fetchone()
         return row[0] if row else None
+
 ```
 
 - [ ] **Step 4: Run the store tests**
@@ -2065,66 +2737,53 @@ Expected: 2 passed.
 `backend/tests/grid/test_ingest.py`:
 
 ```python
+from datetime import date
 from pathlib import Path
-from typing import Any
 
-from tests.grid.events import ev, player, stats
-from throughline.grid.client import SeriesRef, TournamentRef
-from throughline.grid.ingest import ingest, meta_from_series_state
+import zstandard
+
+from tests.grid.feed import FeedBuilder
+from tests.grid.test_parser import played
+from throughline.grid.ingest import ingest
 from throughline.store.analytics import AnalyticsStore
 
-STATE = {
-    "id": "s1",
-    "startedAt": "2026-11-01T10:00:00Z",
-    "games": [
-        {"sequenceNumber": 1, "finished": True,
-         "teams": [{"name": "Alpha", "side": "blue", "won": True}, {"name": "Beta", "side": "red", "won": False}]},
-        {"sequenceNumber": 2, "finished": False, "teams": []},
-    ],
-}
+INDEX = (
+    "series_id,event,stage,scheduled_start,teams,file\n"
+    "s1,LCS - Split 3 2026,Regular Season,2026-07-26T20:00:00Z,Alpha vs Beta,lol/events_s1_grid.jsonl.zst\n"
+    "s2,LEC - Spring 2026,Regular Season,2026-04-01T17:00:00Z,Gamma vs Delta,lol/events_s2_grid.jsonl.zst\n"
+)
 
 
-def game_lines() -> bytes:
-    lines = [stats(float(t), [player(pid, 100.0, 100.0) for pid in range(1, 11)]) for t in range(1, 4)]
-    lines.append(ev("game_end", 1500, winningTeam=100))
-    return "\n".join(lines).encode()
+def starter_data(tmp_path: Path) -> Path:
+    """A tiny stand-in for the starter repository: an index and one series file (s2's file is missing)."""
+    (tmp_path / "lol").mkdir(parents=True)
+    (tmp_path / "lol" / "series.csv").write_text(INDEX)
+    feed = played(FeedBuilder("s1"), "g1", 1).win(1500, "blue")
+    played(feed, "g2", 2).win(1600, "red")
+    raw = "\n".join(feed.lines()).encode()
+    (tmp_path / "lol" / "events_s1_grid.jsonl.zst").write_bytes(zstandard.ZstdCompressor().compress(raw))
+    return tmp_path
 
 
-class FakeClient:
-    def __init__(self) -> None:
-        self.downloads = 0
-
-    def tournaments(self, name_contains: str) -> list[TournamentRef]:
-        return [TournamentRef("t1", "Test Cup")]
-
-    def series(self, tournament_id: str) -> list[SeriesRef]:
-        return [SeriesRef("s1", "Test Cup", "2026-11-01T10:00:00Z")]
-
-    def series_state(self, series_id: str) -> dict[str, Any]:
-        return STATE
-
-    def game_events(self, series_id: str, game_number: int) -> bytes:
-        self.downloads += 1
-        return game_lines()
-
-
-def test_meta_from_series_state() -> None:
-    meta = meta_from_series_state(STATE, SeriesRef("s1", "Test Cup", "x"), 1)
-    assert meta is not None
-    assert (meta.game_id, meta.teams) == ("s1-1", {"blue": "Alpha", "red": "Beta"})
-    assert meta_from_series_state(STATE, SeriesRef("s1", "Test Cup", "x"), 2) is None
-
-
-def test_ingest_downloads_once_and_skips_known(tmp_path: Path) -> None:
+def test_ingest_stores_games_and_skips_known_series(tmp_path: Path) -> None:
+    stl = starter_data(tmp_path / "stl")
     store = AnalyticsStore(tmp_path / "a.duckdb")
     store.init_schema()
-    client = FakeClient()
-    first = ingest(client, store, tmp_path / "raw", "Test")
-    assert (first.added, first.skipped, first.failed) == (1, 0, [])
-    assert (tmp_path / "raw" / "s1-1.jsonl.gz").exists()
-    second = ingest(client, store, tmp_path / "raw", "Test")
-    assert (second.added, second.skipped) == (0, 1)
-    assert client.downloads == 1
+    first = ingest(stl, store)
+    assert (first.added, first.skipped_series) == (2, 0)
+    assert first.failed == [("s2", "missing file lol/events_s2_grid.jsonl.zst")]
+    assert store.load_game("g2").meta.tournament == "LCS - Split 3 2026"
+    second = ingest(stl, store)
+    assert (second.added, second.skipped_series) == (0, 1)
+
+
+def test_ingest_filters_by_event_and_date(tmp_path: Path) -> None:
+    stl = starter_data(tmp_path / "stl")
+    store = AnalyticsStore(tmp_path / "a.duckdb")
+    store.init_schema()
+    assert ingest(stl, store, event="lec").failed == [("s2", "missing file lol/events_s2_grid.jsonl.zst")]
+    assert ingest(stl, store, since=date(2026, 8, 1)).added == 0
+    assert ingest(stl, store, event="LCS", since=date(2026, 7, 1)).added == 2
 ```
 
 - [ ] **Step 6: Run it to verify it fails**
@@ -2139,116 +2798,87 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.grid.inge
 ```python
 from __future__ import annotations
 
-import gzip
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date
 from pathlib import Path
-from typing import Any, Protocol
 
-from throughline.game.model import GameMeta, Side
-from throughline.grid.client import SeriesRef, TournamentRef
-from throughline.grid.parser import ParseError, parse_events
+from throughline.grid.parser import SeriesInfo, parse_series
+from throughline.grid.source import read_lines, read_series_index
 from throughline.store.analytics import AnalyticsStore
-
-
-class GridSource(Protocol):
-    def tournaments(self, name_contains: str) -> list[TournamentRef]: ...
-    def series(self, tournament_id: str) -> list[SeriesRef]: ...
-    def series_state(self, series_id: str) -> dict[str, Any]: ...
-    def game_events(self, series_id: str, game_number: int) -> bytes: ...
 
 
 @dataclass
 class IngestReport:
     added: int = 0
-    skipped: int = 0
-    failed: list[tuple[str, str]] = field(default_factory=list)
+    skipped_series: int = 0
+    failed: list[tuple[str, str]] = field(default_factory=list)  # (series or game id, reason)
 
 
-def meta_from_series_state(state: dict[str, Any], series: SeriesRef, game_number: int) -> GameMeta | None:
-    game = next((g for g in state.get("games", []) if g.get("sequenceNumber") == game_number), None)
-    if game is None or not game.get("finished"):
-        return None
-    teams: dict[Side, str] = {}
-    for team in game.get("teams", []):
-        side = str(team.get("side", "")).lower()
-        if side in ("blue", "red"):
-            teams[side] = str(team.get("name", ""))  # type: ignore[index]
-    if set(teams) != {"blue", "red"}:
-        return None
-    started = datetime.fromisoformat(str(state.get("startedAt") or series.start).replace("Z", "+00:00"))
-    return GameMeta(f"{series.id}-{game_number}", series.id, game_number, series.tournament, started, teams)
-
-
-def _raw_events(source: GridSource, raw_dir: Path, meta: GameMeta) -> bytes:
-    path = raw_dir / f"{meta.game_id}.jsonl.gz"
-    if path.exists():
-        return gzip.decompress(path.read_bytes())
-    content = source.game_events(meta.series_id, meta.game_number)
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(gzip.compress(content))
-    return content
-
-
-def ingest(source: GridSource, store: AnalyticsStore, raw_dir: Path, tournament_query: str,
-           since: str | None = None) -> IngestReport:
+def ingest(
+    stl_dir: Path, store: AnalyticsStore, event: str | None = None, since: date | None = None
+) -> IngestReport:
+    """Parse and store every game of the starter data's series, skipping series already stored."""
     report = IngestReport()
-    for tournament in source.tournaments(tournament_query):
-        for series in source.series(tournament.id):
-            if since and series.start < since:
-                continue
-            state = source.series_state(series.id)
-            for game in state.get("games", []):
-                meta = meta_from_series_state(state, series, int(game.get("sequenceNumber", 0)))
-                if meta is None:
-                    continue
-                if store.has_game(meta.game_id):
-                    report.skipped += 1
-                    continue
-                try:
-                    parsed = parse_events(_raw_events(source, raw_dir, meta).splitlines(), meta)
-                except (ParseError, ValueError) as error:
-                    report.failed.append((meta.game_id, str(error)))
-                    continue
-                store.write_game(parsed)
-                report.added += 1
+    for row in read_series_index(stl_dir):
+        if event and event.lower() not in row.event.lower():
+            continue
+        if since and row.scheduled_start.date() < since:
+            continue
+        if store.has_series(row.series_id):
+            report.skipped_series += 1
+            continue
+        path = stl_dir / row.file
+        if not path.exists():
+            report.failed.append((row.series_id, f"missing file {row.file}"))
+            continue
+        parsed = parse_series(read_lines(path), SeriesInfo(row.series_id, row.event, row.scheduled_start))
+        for game in parsed.games:
+            store.write_game(game)
+            report.added += 1
+        report.failed += parsed.failures
     return report
 ```
 
 Add to `backend/throughline/cli.py`:
 
 ```python
+from datetime import date
+
 from throughline.grid.ingest import ingest as run_ingest
 from throughline.store.analytics import AnalyticsStore
 
 
 @app.command()
-def ingest(tournament: str, since: str | None = None) -> None:
-    """Download, parse and store every finished game of the tournaments whose name contains TOURNAMENT."""
+def ingest(event: str | None = None, since: str | None = None) -> None:
+    """Parse and store every LoL game of the starter data; --event filters by event name, --since by date."""
     settings = Settings.from_env()
     store = AnalyticsStore(settings.analytics_db)
     store.init_schema()
-    report = run_ingest(_client(settings), store, settings.data_dir / "raw", tournament, since)
-    typer.echo(f"added {report.added}, skipped {report.skipped}, failed {len(report.failed)}")
-    for game_id, error in report.failed:
-        typer.echo(f"  {game_id}: {error}")
+    report = run_ingest(_stl_dir(settings), store, event, date.fromisoformat(since) if since else None)
+    skipped, failed = report.skipped_series, len(report.failed)
+    typer.echo(f"added {report.added} games, skipped {skipped} known series, failed {failed}")
+    for key, error in report.failed:
+        typer.echo(f"  {key}: {error}")
 ```
 
 - [ ] **Step 8: Run all tests, lint and types**
 
-Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check .`
+Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check . && uv run ruff format --check .`
 Expected: all pass, clean.
 
 - [ ] **Step 9: Ingest the real dataset**
 
-Run: `cd backend && uv run throughline ingest "<league name>" --since 2026-01-01` for each league the hackathon key covers (target 600+ games).
-Expected: games added, a handful of failures at most; every failure's reason goes in BUILD_LOG and gets fixed in the parser if it is a parsing gap.
+Run: `cd backend && uv run throughline ingest`
+Expected: about 2 minutes; `added 1738 games`, 1 failure (`3ac8f0c2-...`: a side with six players who have a champion), a DuckDB file of about 130 MB in `backend/data/`.
+Record the numbers and every failure's reason in BUILD_LOG.
+Open the file in DataGrip and save a scratch query for the build log: `SELECT tournament, count(*), min(patch), max(patch) FROM games GROUP BY 1 ORDER BY 1`.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add backend
-git commit -m "feat(store): DuckDB analytics store and GRID ingest"
+git add backend docs/BUILD_LOG.md
+! git diff --cached --name-only | grep -Ei '\.(zst|jsonl|parquet|sqlite|duckdb|csv)$' \
+  && git commit -m "feat(store): DuckDB analytics store and ingest from the starter data"
 ```
 
 ---
@@ -2262,25 +2892,35 @@ git commit -m "feat(store): DuckDB analytics store and GRID ingest"
 - Test: `backend/tests/game/test_index.py`
 
 **Interfaces:**
-- Consumes: `Game`, `Frame`, `LANE_ROLES`, `other`, `dist` (Tasks 3-4).
-- Produces: `GameIndex(game)` with `game`, `frame(pid, t) -> Frame | None` (the last frame at or before `t`), `pids(side) -> list[int]`, `team_gold(side, t) -> int`, `gold_diff(side, t) -> int`, `role_gold_diff(side, role, t) -> int`, `lane_gold_diff(side, lane, t) -> int`, `near(side, point, radius, t) -> int` (alive players of `side` within `radius`), `nearest_ally_distance(pid, t) -> float`.
+- Consumes: `Game`, `Frame`, `LANE_ROLES`, `other`, `dist` (Tasks 2-4).
+- Produces: `POSITION_MAX_GAP = 20.0`, `POSITION_TOLERANCE = 5.0`; `GameIndex(game)` with `game`, `frame(pid, t) -> Frame | None` (the last observation at or before `t`: gold, level, alive), `position(pid, t) -> Point | None` (interpolated between observations at most `POSITION_MAX_GAP` apart, else the observation within `POSITION_TOLERANCE`, else unknown), `pids(side) -> list[int]`, `team_gold(side, t) -> int`, `gold_diff(side, t) -> int`, `role_gold_diff(side, role, t) -> int`, `lane_gold_diff(side, lane, t) -> int`, `near(side, point, radius, t) -> int` (alive players of `side` known to be within `radius`), `nearest_ally_distance(pid, t) -> float`.
+
+Real frames are irregular (median 2 s apart, gaps up to a minute), so every position question goes through `position`, and an unknown position never counts as near.
+On the real data, 3.4% of player positions sampled every 30 s are unknown under these two constants.
 
 - [ ] **Step 1: Write the failing test**
 
 `backend/tests/game/test_index.py`:
 
 ```python
+from dataclasses import replace
+
 from throughline.game.builder import GameBuilder
 from throughline.game.index import GameIndex
+from throughline.game.model import Frame
 
 
 def test_frames_gold_and_proximity() -> None:
-    game = (GameBuilder(duration=120.0)
-            .walk(1, 10.0, 20.0, (1000.0, 1000.0), (1000.0, 2000.0))
-            .at(2, 50.0, 9800.0, 4400.0).at(3, 50.0, 9900.0, 4500.0).at(7, 50.0, 9700.0, 4300.0)
-            .dead(3, 51.0, 60.0)
-            .gold_lead("blue", 1000, 0.0, 100.0)
-            .build())
+    game = (
+        GameBuilder(duration=120.0)
+        .walk(1, 10.0, 20.0, (1000.0, 1000.0), (1000.0, 2000.0))
+        .at(2, 50.0, 9800.0, 4400.0)
+        .at(3, 50.0, 9900.0, 4500.0)
+        .at(7, 50.0, 9700.0, 4300.0)
+        .dead(3, 51.0, 60.0)
+        .gold_lead("blue", 1000, 0.0, 100.0)
+        .build()
+    )
     index = GameIndex(game)
     frame = index.frame(1, 15.5)
     assert frame is not None and (frame.t, frame.y) == (15.0, 1500.0)
@@ -2294,6 +2934,23 @@ def test_frames_gold_and_proximity() -> None:
     assert index.near("blue", (9866.0, 4414.0), 2500.0, 55.0) == 1  # player 3 is dead
     assert index.near("red", (9866.0, 4414.0), 2500.0, 50.0) == 1
     assert index.nearest_ally_distance(2, 50.0) < 200.0
+
+
+def test_positions_interpolate_short_gaps_and_are_unknown_in_long_ones() -> None:
+    base = GameBuilder(duration=100.0).build()
+    sparse = [
+        Frame(0.0, 1, 0.0, 0.0, True, 500, 1),
+        Frame(10.0, 1, 1000.0, 0.0, True, 600, 1),
+        Frame(60.0, 1, 5000.0, 0.0, True, 900, 1),
+    ]
+    index = GameIndex(replace(base, frames=sparse + [f for f in base.frames if f.pid != 1]))
+    assert index.position(1, 4.0) == (400.0, 0.0)
+    assert index.position(1, 13.0) == (1000.0, 0.0)  # 50 s gap: the observation 3 s away
+    assert index.position(1, 30.0) is None
+    assert index.position(1, 57.0) == (5000.0, 0.0)
+    frame = index.frame(1, 30.0)
+    assert frame is not None and frame.gold == 600
+    assert index.near("blue", (1000.0, 0.0), 500.0, 30.0) == 0  # unknown is not near
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -2315,9 +2972,12 @@ from collections import defaultdict
 from throughline.game.geometry import Point, dist
 from throughline.game.model import LANE_ROLES, Frame, Game, Lane, Role, Side, other
 
+POSITION_MAX_GAP = 20.0  # interpolate between two observations at most this far apart
+POSITION_TOLERANCE = 5.0  # otherwise use an observation at most this far from the asked time
+
 
 class GameIndex:
-    """Fast lookups over one game's frames."""
+    """Fast lookups over one game's frames, which the feed samples irregularly."""
 
     def __init__(self, game: Game) -> None:
         self.game = game
@@ -2332,11 +2992,38 @@ class GameIndex:
         }
 
     def frame(self, pid: int, t: float) -> Frame | None:
+        """The last observation at or before `t`: gold, level and alive as of `t`."""
         times = self._times.get(pid)
         if not times:
             return None
         i = bisect_right(times, t) - 1
         return self._frames[pid][i] if i >= 0 else None
+
+    def position(self, pid: int, t: float) -> Point | None:
+        """Where the player was at `t`, or None when the feed has no observation close enough."""
+        times = self._times.get(pid)
+        if not times:
+            return None
+        frames = self._frames[pid]
+        i = bisect_right(times, t) - 1
+        before = frames[i] if i >= 0 else None
+        after = frames[i + 1] if i + 1 < len(frames) else None
+        if before is not None and before.t == t:
+            return (before.x, before.y)
+        if (
+            before is not None
+            and after is not None
+            and before.alive
+            and after.alive
+            and after.t - before.t <= POSITION_MAX_GAP
+        ):
+            u = (t - before.t) / (after.t - before.t)
+            return (before.x + (after.x - before.x) * u, before.y + (after.y - before.y) * u)
+        close = [f for f in (before, after) if f is not None and abs(f.t - t) <= POSITION_TOLERANCE]
+        if not close:
+            return None
+        nearest = min(close, key=lambda f: abs(f.t - t))
+        return (nearest.x, nearest.y)
 
     def pids(self, side: Side) -> list[int]:
         return list(self._pids[side])
@@ -2359,16 +3046,23 @@ class GameIndex:
     def lane_gold_diff(self, side: Side, lane: Lane, t: float) -> int:
         return sum(self.role_gold_diff(side, role, t) for role in LANE_ROLES[lane])
 
+    def _alive_at(self, pid: int, t: float) -> Point | None:
+        f = self.frame(pid, t)
+        if f is None or not f.alive:
+            return None
+        return self.position(pid, t)
+
     def near(self, side: Side, point: Point, radius: float, t: float) -> int:
+        """Alive players of `side` known to be within `radius` of `point` at `t`."""
         count = 0
         for pid in self._pids[side]:
-            f = self.frame(pid, t)
-            if f is not None and f.alive and dist((f.x, f.y), point) <= radius:
+            pos = self._alive_at(pid, t)
+            if pos is not None and dist(pos, point) <= radius:
                 count += 1
         return count
 
     def nearest_ally_distance(self, pid: int, t: float) -> float:
-        me = self.frame(pid, t)
+        me = self.position(pid, t)
         if me is None:
             return math.inf
         side = self.game.side_of(pid)
@@ -2376,9 +3070,9 @@ class GameIndex:
         for ally in self._pids[side]:
             if ally == pid:
                 continue
-            f = self.frame(ally, t)
-            if f is not None and f.alive:
-                best = min(best, dist((f.x, f.y), (me.x, me.y)))
+            pos = self._alive_at(ally, t)
+            if pos is not None:
+                best = min(best, dist(pos, me))
         return best
 ```
 
@@ -2391,7 +3085,7 @@ Expected: all pass, clean.
 
 ```bash
 git add backend
-git commit -m "feat(game): GameIndex for frames, gold and proximity"
+git commit -m "feat(game): GameIndex for frames, interpolated positions, gold and proximity"
 ```
 
 ### Task 7: Objective instances and setups
@@ -2401,10 +3095,12 @@ git commit -m "feat(game): GameIndex for frames, gold and proximity"
 - Test: `backend/tests/game/test_setups.py`, `backend/tests/game/test_spawns_realdata.py`
 
 **Interfaces:**
-- Consumes: `GameIndex`, `objective_center`, `PIT_RADIUS`, `wards_near` (Tasks 4, 6).
-- Produces: `SPAWNS: dict[ObjectiveKind, tuple[float, float | None]]` (first spawn, respawn after a take), `SETUP_WINDOW = 90.0`, `GROUP_SIZE = 3`, `ObjectiveInstance(kind, spawn_at, taken: Objective | None)`, `Setup(instance, center, near_at_spawn: dict[Side, int], grouped_at: dict[Side, float | None], wards: dict[Side, int])`, `objective_instances(game) -> list[ObjectiveInstance]`, `setup_for(index, instance) -> Setup | None`.
+- Consumes: `GameIndex`, `objective_center`, `PIT_RADIUS` (Tasks 2, 6).
+- Produces: `SPAWNS: dict[ObjectiveKind, tuple[float, float | None]]` (fallback first spawn and respawn after a take), `SPAWN_MERGE = 60.0`, `INSTANCE_KINDS`, `SETUP_WINDOW = 90.0`, `GROUP_SIZE = 3`, `ObjectiveInstance(kind, spawn_at, taken: Objective | None)`, `Setup(instance, center, near_at_spawn: dict[Side, int], grouped_at: dict[Side, float | None])`, `objective_instances(game) -> list[ObjectiveInstance]`, `setup_for(index, instance) -> Setup | None`.
 
-The spawn times below are the defaults for the 2026 season; the real-data test checks them against the earliest takes in the dataset. If the census (Task 2) found an epic monster spawn event, read spawn times from it instead and keep `SPAWNS` as the fallback.
+Real games carry their own spawn events, so instances come from them: spawn times move between seasons (first baron 24:40 in 2025 and 19:40 in 2026 on the feed's clock; grubs and herald also moved within 2025), and no fixed table is right for every game.
+`SPAWNS` is only the fallback for games without spawn records, which in practice means `GameBuilder` games.
+The feed has no wards, so a setup is who was near the pit and when each team first had three there; there is no vision count.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2418,23 +3114,49 @@ from throughline.game.setups import objective_instances, setup_for
 PIT = (9866.0, 4414.0)
 
 
-def test_dragon_instances_follow_respawns() -> None:
-    game = (GameBuilder(duration=1100.0)
-            .objective(330.0, "dragon", "blue")
-            .objective(700.0, "dragon", "red")
-            .build())
+def test_without_spawn_records_dragons_follow_the_respawn_schedule() -> None:
+    game = (
+        GameBuilder(duration=1100.0)
+        .objective(330.0, "dragon", "blue")
+        .objective(700.0, "dragon", "red")
+        .build()
+    )
     dragons = [i for i in objective_instances(game) if i.kind == "dragon"]
     assert [(i.spawn_at, i.taken.t if i.taken else None) for i in dragons] == [
-        (300.0, 330.0), (630.0, 700.0), (1000.0, None)]
+        (300.0, 330.0),
+        (630.0, 700.0),
+        (1000.0, None),
+    ]
 
 
-def test_setup_counts_players_grouping_and_wards() -> None:
+def test_spawn_records_define_instances_and_grubs_merge() -> None:
+    game = (
+        GameBuilder(duration=1400.0)
+        .spawn(294.0, "dragon", *PIT)
+        .spawn(473.0, "grubs")
+        .spawn(473.0, "grubs")
+        .spawn(474.0, "grubs")
+        .spawn(640.0, "dragon", *PIT)
+        .spawn(1180.0, "baron")
+        .objective(330.0, "dragon", "blue")
+        .objective(500.0, "grubs", "red")
+        .objective(505.0, "grubs", "red")
+        .build()
+    )
+    instances = [(i.kind, i.spawn_at, i.taken.t if i.taken else None) for i in objective_instances(game)]
+    assert instances == [
+        ("dragon", 294.0, 330.0),
+        ("grubs", 473.0, 500.0),
+        ("dragon", 640.0, None),
+        ("baron", 1180.0, None),
+    ]
+
+
+def test_setup_counts_players_and_grouping() -> None:
     builder = GameBuilder(duration=400.0)
     for pid in (1, 2, 3):
         builder.walk(pid, 200.0, 260.0, (6000.0, 2000.0), PIT)
     builder.walk(8, 280.0, 300.0, (12000.0, 3000.0), PIT)
-    builder.ward(240.0, 5, 9500.0, 4600.0)
-    builder.ward(150.0, 4, 9500.0, 4600.0)  # before the window
     builder.objective(330.0, "dragon", "blue")
     game = builder.build()
     instance = next(i for i in objective_instances(game) if i.kind == "dragon")
@@ -2444,13 +3166,19 @@ def test_setup_counts_players_grouping_and_wards() -> None:
     # They enter the 2,500-unit radius at 228 s; samples run every 5 s from 210 s.
     assert setup.grouped_at["blue"] == 230.0
     assert setup.grouped_at["red"] is None
-    assert setup.wards == {"blue": 1, "red": 0}
 
 
 def test_atakhan_without_position_has_no_setup() -> None:
     game = GameBuilder(duration=1500.0).objective(1250.0, "atakhan", "red").build()
     instance = next(i for i in objective_instances(game) if i.kind == "atakhan")
     assert setup_for(GameIndex(game), instance) is None
+
+
+def test_atakhan_setup_uses_the_spawn_position() -> None:
+    game = GameBuilder(duration=1500.0).spawn(1189.0, "atakhan", 7000.0, 5000.0).build()
+    instance = next(i for i in objective_instances(game) if i.kind == "atakhan")
+    setup = setup_for(GameIndex(game), instance)
+    assert setup is not None and setup.center == (7000.0, 5000.0)
 ```
 
 `backend/tests/game/test_spawns_realdata.py`:
@@ -2461,26 +3189,24 @@ from pathlib import Path
 
 import pytest
 
-from throughline.game.setups import SPAWNS
 from throughline.store.analytics import AnalyticsStore
 
 pytestmark = pytest.mark.realdata
 
 
 @pytest.mark.skipif(not os.environ.get("TL_DATA_DIR"), reason="needs TL_DATA_DIR")
-def test_first_spawns_match_the_data() -> None:
+def test_every_game_has_spawns_and_nothing_is_taken_before_it_spawns() -> None:
     store = AnalyticsStore(Path(os.environ["TL_DATA_DIR"]) / "throughline.duckdb", read_only=True)
-    for kind, (first, _) in SPAWNS.items():
-        kinds = ["dragon", "elder"] if kind == "dragon" else [kind]
-        row = store.con.execute(
-            f"SELECT min(t), count(*) FROM objectives WHERE kind IN ({','.join('?' * len(kinds))})", kinds
-        ).fetchone()
-        assert row is not None
-        earliest, count = row
-        if count < 20:
-            continue
-        assert earliest >= first, f"{kind}: taken at {earliest} before spawn {first}"
-        assert earliest <= first + 120, f"{kind}: earliest take {earliest} far after spawn {first}"
+    early = store.con.execute(
+        "SELECT o.game_id, o.kind, o.t FROM objectives o "
+        "JOIN (SELECT game_id, kind, min(t) AS first FROM spawns GROUP BY ALL) s USING (game_id, kind) "
+        "WHERE o.t < s.first"
+    ).fetchall()
+    assert early == []
+    row = store.con.execute(
+        "SELECT (SELECT count(*) FROM games), (SELECT count(DISTINCT game_id) FROM spawns)"
+    ).fetchone()
+    assert row is not None and row[0] == row[1]
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -2500,15 +3226,25 @@ from dataclasses import dataclass
 from throughline.game.geometry import PIT_RADIUS, Point, objective_center
 from throughline.game.index import GameIndex
 from throughline.game.model import SIDES, Game, Objective, ObjectiveKind, Side
-from throughline.game.wards import wards_near
 
-#: (first spawn, respawn after a take or None) in seconds.
+#: Fallback (first spawn, respawn after a take or None) in seconds, for games without spawn records
+#: (GameBuilder games). Real games use the feed's own spawn events.
 SPAWNS: dict[ObjectiveKind, tuple[float, float | None]] = {
     "dragon": (300.0, 300.0),
     "grubs": (480.0, None),
     "herald": (900.0, None),
     "atakhan": (1200.0, None),
     "baron": (1500.0, 360.0),
+}
+#: Spawn records of one kind this close together are one instance (grubs spawn as three).
+SPAWN_MERGE = 60.0
+INSTANCE_KINDS: dict[ObjectiveKind, ObjectiveKind] = {
+    "dragon": "dragon",
+    "elder": "dragon",
+    "grubs": "grubs",
+    "herald": "herald",
+    "baron": "baron",
+    "atakhan": "atakhan",
 }
 SETUP_WINDOW = 90.0
 SAMPLE_STEP = 5.0
@@ -2528,14 +3264,33 @@ class Setup:
     center: Point
     near_at_spawn: dict[Side, int]
     grouped_at: dict[Side, float | None]
-    wards: dict[Side, int]
 
 
-def objective_instances(game: Game) -> list[ObjectiveInstance]:
+def _takes(game: Game, kind: ObjectiveKind) -> list[Objective]:
+    return [o for o in game.objectives if INSTANCE_KINDS[o.kind] == kind]
+
+
+def _observed_instances(game: Game) -> list[ObjectiveInstance]:
+    out: list[ObjectiveInstance] = []
+    starts: dict[ObjectiveKind, list[float]] = {}
+    for spawn in game.spawns:
+        kind = INSTANCE_KINDS[spawn.kind]
+        times = starts.setdefault(kind, [])
+        if not times or spawn.t - times[-1] > SPAWN_MERGE:
+            times.append(spawn.t)
+    for kind, times in starts.items():
+        takes = _takes(game, kind)
+        for i, spawn_at in enumerate(times):
+            until = times[i + 1] if i + 1 < len(times) else game.duration + 1.0
+            taken = next((o for o in takes if spawn_at <= o.t < until), None)
+            out.append(ObjectiveInstance(kind, spawn_at, taken))
+    return out
+
+
+def _scheduled_instances(game: Game) -> list[ObjectiveInstance]:
     out: list[ObjectiveInstance] = []
     for kind, (first, respawn) in SPAWNS.items():
-        kinds = ("dragon", "elder") if kind == "dragon" else (kind,)
-        takes = [o for o in game.objectives if o.kind in kinds]
+        takes = _takes(game, kind)
         spawn = first
         while spawn < game.duration:
             taken = next((o for o in takes if o.t >= spawn), None)
@@ -2543,11 +3298,30 @@ def objective_instances(game: Game) -> list[ObjectiveInstance]:
             if taken is None or respawn is None:
                 break
             spawn = taken.t + respawn
-    return sorted(out, key=lambda i: i.spawn_at)
+    return out
+
+
+def objective_instances(game: Game) -> list[ObjectiveInstance]:
+    """Every time an epic monster was up: from the feed's spawns, or from SPAWNS when a game has none."""
+    instances = _observed_instances(game) if game.spawns else _scheduled_instances(game)
+    return sorted(instances, key=lambda i: i.spawn_at)
 
 
 def setup_for(index: GameIndex, instance: ObjectiveInstance) -> Setup | None:
-    center = objective_center(instance.kind, instance.taken)
+    spawn_record = next(
+        (
+            s
+            for s in index.game.spawns
+            if INSTANCE_KINDS[s.kind] == instance.kind and s.t >= instance.spawn_at
+        ),
+        None,
+    )
+    located = instance.taken or (
+        Objective(spawn_record.t, spawn_record.kind, "blue", spawn_record.x, spawn_record.y)
+        if spawn_record
+        else None
+    )
+    center = objective_center(instance.kind, located)
     if center is None:
         return None
     spawn = instance.spawn_at
@@ -2565,23 +3339,19 @@ def setup_for(index: GameIndex, instance: ObjectiveInstance) -> Setup | None:
         center=center,
         near_at_spawn={side: index.near(side, center, PIT_RADIUS, spawn) for side in SIDES},
         grouped_at=grouped,
-        wards={
-            side: len(wards_near(index.game, side, center, PIT_RADIUS, spawn - SETUP_WINDOW, spawn))
-            for side in SIDES
-        },
     )
 ```
 
 - [ ] **Step 4: Run the tests, then the real-data check**
 
-Run: `cd backend && uv run pytest tests/game -v && TL_DATA_DIR=../data uv run pytest -m realdata -v`
-Expected: all pass. If the real-data test fails, set `SPAWNS` to the patch's real values (the failure message shows the earliest take) and note it in BUILD_LOG.
+Run: `cd backend && uv run pytest tests/game -v && TL_DATA_DIR=data uv run pytest -m realdata tests/game -v`
+Expected: all pass. On the real data, no objective is taken before its first spawn and every game has spawn records.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add backend
-git commit -m "feat(game): objective instances and setups"
+git commit -m "feat(game): objective instances from the feed's spawns, and setups"
 ```
 
 ### Task 8: Fights
@@ -2721,10 +3491,10 @@ git commit -m "feat(game): fight detection"
 - Test: `backend/tests/api/__init__.py`, `backend/tests/api/conftest.py`, `backend/tests/api/test_games.py`
 
 **Interfaces:**
-- Consumes: `AnalyticsStore`, `GameIndex`, `ward_end`, `kill_side`.
+- Consumes: `AnalyticsStore`, `GameIndex`, `FOUNTAIN`, `kill_side`.
 - Produces:
   - `AnalyticsStore.reader() -> AnalyticsStore` (a per-request cursor on the same database), `AnalyticsStore.champion_counts() -> list[tuple[str, int]]`.
-  - `replay_payload(game) -> dict[str, Any]` with keys `game`, `participants`, `times`, `positions` (`{pid: [[x, y, alive], ...]}` aligned with `times`), `wards`, `kills`, `objectives`, `structures`.
+  - `replay_payload(game) -> dict[str, Any]` with keys `game`, `participants`, `times`, `positions` (`{pid: [[x, y, alive, seen], ...]}` aligned with `times`; `seen` is 0 where the feed has no observation close enough and the icon shows the last known spot), `spawns`, `kills`, `objectives`, `structures`.
   - `create_app(settings, analytics: AnalyticsStore | None = None) -> FastAPI`; `request.app.state.analytics`.
   - Routes: `GET /api/champions`, `GET /api/games?q=&limit=`, `GET /api/games/{game_id}/replay`.
   - Test fixture `client` (TestClient over a store holding two GameBuilder games, `g1` and `g2`).
@@ -2754,7 +3524,7 @@ def store(tmp_path: Path) -> AnalyticsStore:
     store = AnalyticsStore(tmp_path / "a.duckdb")
     store.init_schema()
     store.write_game(GameBuilder(duration=120.0, game_id="g1", started_at=datetime(2026, 11, 1, tzinfo=UTC))
-                     .ward(30.0, 5, 9000.0, 4000.0)
+                     .spawn(30.0, "dragon", 9866.0, 4414.0)
                      .kill(60.0, 2, 8, 5000.0, 5000.0)
                      .objective(90.0, "dragon", "blue")
                      .build())
@@ -2791,9 +3561,8 @@ def test_replay_payload(client: TestClient) -> None:
     assert replay["game"]["duration"] == 120.0
     assert len(replay["times"]) == 121
     assert len(replay["positions"]["1"]) == 121
-    assert replay["positions"]["1"][0] == [500, 500, 1]
-    assert replay["wards"][0] == {"id": "w1", "pid": 5, "side": "blue", "kind": "sight",
-                                  "x": 9000, "y": 4000, "start": 30.0, "end": 120.0}
+    assert replay["positions"]["1"][0] == [500, 500, 1, 1]
+    assert replay["spawns"][0] == {"t": 30.0, "kind": "dragon", "x": 9866, "y": 4414}
     assert replay["kills"][0]["side"] == "blue"
     assert replay["objectives"][0] == {"t": 90.0, "kind": "dragon", "by": "blue"}
 
@@ -2837,9 +3606,13 @@ from __future__ import annotations
 from typing import Any
 
 from throughline.game.fights import kill_side
+from throughline.game.geometry import FOUNTAIN
 from throughline.game.index import GameIndex
 from throughline.game.model import Game
-from throughline.game.wards import ward_end
+
+
+def _round(value: float | None) -> int | None:
+    return None if value is None else round(value)
 
 
 def replay_payload(game: Game) -> dict[str, Any]:
@@ -2850,7 +3623,12 @@ def replay_payload(game: Game) -> dict[str, Any]:
         track: list[list[int]] = []
         for t in times:
             f = index.frame(p.pid, float(t))
-            track.append([round(f.x), round(f.y), 1 if f.alive else 0] if f else [0, 0, 0])
+            pos = index.position(p.pid, float(t))
+            seen = pos is not None
+            if pos is None:
+                pos = (f.x, f.y) if f else FOUNTAIN[p.side]
+            alive = f.alive if f else True
+            track.append([round(pos[0]), round(pos[1]), int(alive), int(seen)])
         positions[str(p.pid)] = track
     return {
         "game": {
@@ -2867,11 +3645,7 @@ def replay_payload(game: Game) -> dict[str, Any]:
         ],
         "times": times,
         "positions": positions,
-        "wards": [
-            {"id": w.ward_id, "pid": w.pid, "side": game.side_of(w.pid), "kind": w.kind,
-             "x": round(w.x), "y": round(w.y), "start": w.placed_at, "end": ward_end(w, game.duration)}
-            for w in game.wards
-        ],
+        "spawns": [{"t": s.t, "kind": s.kind, "x": _round(s.x), "y": _round(s.y)} for s in game.spawns],
         "kills": [
             {"t": k.t, "killer": k.killer, "victim": k.victim, "x": round(k.x), "y": round(k.y),
              "side": kill_side(game, k)}
@@ -3157,8 +3931,8 @@ export interface Replay {
   game: { id: string; duration: number; patch: string; teams: Record<Side, string>; winner: Side; tournament: string };
   participants: ReplayParticipant[];
   times: number[];
-  positions: Record<string, [number, number, number][]>;
-  wards: { id: string; pid: number; side: Side; kind: string; x: number; y: number; start: number; end: number }[];
+  positions: Record<string, [number, number, number, number][]>; // x, y, alive, seen
+  spawns: { t: number; kind: string; x: number | null; y: number | null }[];
   kills: { t: number; killer: number | null; victim: number; x: number; y: number; side: Side }[];
   objectives: { t: number; kind: string; by: Side }[];
   structures: { t: number; kind: string; lane: string | null; by: Side }[];
@@ -3246,14 +4020,18 @@ import type { Replay } from "../types";
 const SIDE_COLOR = { blue: "#3b82f6", red: "#ef4444" } as const;
 const TRAIL_SECONDS = 10;
 const KILL_SHOW_SECONDS = 5;
+const OBJECTIVE_COLOR = "#facc15";
 
-function positionAt(track: [number, number, number][], t: number): [number, number, boolean] {
+function positionAt(
+  track: [number, number, number, number][],
+  t: number,
+): [number, number, boolean, boolean] {
   const i = Math.max(0, Math.min(track.length - 1, Math.floor(t)));
   const j = Math.min(track.length - 1, i + 1);
   const u = t - i;
-  const [x0, y0, a0] = track[i];
+  const [x0, y0, a0, s0] = track[i];
   const [x1, y1] = track[j];
-  return [x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, a0 === 1];
+  return [x0 + (x1 - x0) * u, y0 + (y1 - y0) * u, a0 === 1, s0 === 1];
 }
 
 export function drawFrame(
@@ -3269,13 +4047,17 @@ export function drawFrame(
   ctx.fillStyle = "rgba(9, 9, 11, 0.35)";
   ctx.fillRect(0, 0, size, size);
 
-  for (const w of replay.wards) {
-    if (w.start > t || w.end <= t) continue;
-    const [x, y] = toCanvas(w.x, w.y, size);
+  // Epic monsters on the map: from their spawn until the next take of that kind.
+  for (const s of replay.spawns) {
+    if (s.x === null || s.y === null || s.t > t) continue;
+    const taken = replay.objectives.find((o) => o.kind === s.kind && o.t >= s.t);
+    if (taken && taken.t <= t) continue;
+    const [x, y] = toCanvas(s.x, s.y, size);
     ctx.beginPath();
-    ctx.arc(x, y, w.kind === "control" ? 4 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = w.kind === "control" ? "#e879f9" : SIDE_COLOR[w.side];
-    ctx.fill();
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.strokeStyle = OBJECTIVE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 
   for (const k of replay.kills) {
@@ -3305,10 +4087,11 @@ export function drawFrame(
     }
     ctx.stroke();
 
-    const [gx, gy, alive] = positionAt(track, t);
+    const [gx, gy, alive, seen] = positionAt(track, t);
     const [x, y] = toCanvas(gx, gy, size);
     ctx.save();
-    ctx.globalAlpha = alive ? 1 : 0.3;
+    // Dead: faint. Not observed near this moment (a feed gap): half, at the last known spot.
+    ctx.globalAlpha = !alive ? 0.3 : seen ? 1 : 0.55;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.closePath();
@@ -3583,7 +4366,7 @@ createRoot(document.getElementById("root")!).render(
 
 Run the API (`cd backend && uv run uvicorn throughline.api.main:app --port 8000`) and `cd frontend && npm run dev`.
 Open `/`, then a game's Replay, then `/replay/<id>?start=280&end=320`.
-Expected: the map renders with icons, trails, wards and kill crosses; the clip loops between 4:40 and 5:20; play, speeds and the scrubber work; nothing overflows at 375 px wide. Screenshot it for BUILD_LOG.
+Expected: the map renders with icons, trails, objective rings and kill crosses, and icons fade during feed gaps; the clip loops between 4:40 and 5:20; play, speeds and the scrubber work; nothing overflows at 375 px wide. Screenshot it for BUILD_LOG.
 
 - [ ] **Step 8: Lint, types, tests, build**
 
@@ -3609,12 +4392,12 @@ git commit -m "feat(frontend): app shell, games list and canvas replay player"
 - Test: `backend/tests/knowledge/__init__.py`, `backend/tests/knowledge/test_items.py`, `backend/tests/knowledge/test_features.py`
 
 **Interfaces:**
-- Consumes: `Game`, `GameIndex`, `GameBuilder`, `AnalyticsStore`.
+- Consumes: `Game`, `GameIndex`, `GameBuilder`, `AnalyticsStore`, `objective_instances`.
 - Produces:
-  - `legendary_item_ids(item_json: dict[str, Any]) -> set[int]`, `fetch_item_json(cache_dir: Path, http: httpx.Client | None = None) -> dict[str, Any]`.
-  - `CURVE_MINUTES = (5, 10, 15, 20, 25, 30)`, `SPIKE_AFTER = 180.0`.
-  - `ParticipantFeatures` (frozen dataclass): `game_id, started_at, patch, side, role, champion, opponent, won, team_gd: dict[int, int | None], role_gd10, role_gd14, level6_at, item1_at, item2_at, gd_after_level6, gd_after_item1, first_dragon, first_grubs, first_herald, first_baron`.
-  - `participant_features(game, legendary: set[int]) -> list[ParticipantFeatures]`.
+  - `legendary_item_names(item_jsons: Iterable[dict[str, Any]]) -> set[str]`, `ddragon_version(patch, versions) -> str | None`, `fetch_item_jsons(patches, cache_dir: Path, http: httpx.Client | None = None) -> list[dict[str, Any]]` (one Data Dragon `item.json` per patch in the data, cached).
+  - `CURVE_MINUTES = (5, 10, 15, 20, 25, 30)`, `SPIKE_AFTER = 180.0`, `FIRST_TAKES`.
+  - `ParticipantFeatures` (frozen dataclass): `game_id, started_at, patch, side, role, champion, opponent, won, team_gd: dict[int, int | None], role_gd10, role_gd14, level6_at, item1_at, item2_at, gd_after_level6, gd_after_item1, first_dragon, first_grubs, first_herald, first_baron, dragon_spawn, grubs_spawn, herald_spawn, baron_spawn` (the game's first spawn of each, from `objective_instances`).
+  - `participant_features(game, legendary: set[str]) -> list[ParticipantFeatures]`.
   - `AnalyticsStore.write_features(game_id, rows)`.
   - CLI: `throughline build`.
 
@@ -3625,19 +4408,58 @@ git commit -m "feat(frontend): app shell, games list and canvas replay player"
 `backend/tests/knowledge/test_items.py`:
 
 ```python
-from throughline.knowledge.items import legendary_item_ids
+from throughline.knowledge.items import ddragon_version, legendary_item_names
 
-ITEMS = {"data": {
-    "3031": {"gold": {"total": 3400, "purchasable": True}, "maps": {"11": True}, "tags": ["CriticalStrike"]},
-    "1038": {"gold": {"total": 1300, "purchasable": True}, "maps": {"11": True}, "into": ["3031"], "tags": []},
-    "3006": {"gold": {"total": 1100, "purchasable": True}, "maps": {"11": True}, "tags": ["Boots"]},
-    "3157": {"gold": {"total": 3250, "purchasable": True}, "maps": {"11": False}, "tags": []},
-    "3089": {"gold": {"total": 3600, "purchasable": True}, "maps": {"11": True}, "tags": []},
-}}
+ITEMS = {
+    "data": {
+        "3031": {
+            "name": "Infinity Edge",
+            "gold": {"total": 3400, "purchasable": True},
+            "maps": {"11": True},
+            "tags": ["CriticalStrike"],
+        },
+        "1038": {
+            "name": "B. F. Sword",
+            "gold": {"total": 1300, "purchasable": True},
+            "maps": {"11": True},
+            "into": ["3031"],
+            "tags": [],
+        },
+        "3006": {
+            "name": "Berserker's Greaves",
+            "gold": {"total": 1100, "purchasable": True},
+            "maps": {"11": True},
+            "tags": ["Boots"],
+        },
+        "3157": {
+            "name": "Zhonya's Hourglass",
+            "gold": {"total": 3250, "purchasable": True},
+            "maps": {"11": False},
+            "tags": [],
+        },
+    }
+}
+OLDER = {
+    "data": {
+        "3089": {
+            "name": "Rabadon's Deathcap",
+            "gold": {"total": 3600, "purchasable": True},
+            "maps": {"11": True},
+            "tags": [],
+        }
+    }
+}
 
 
-def test_legendaries_are_finished_rift_items_above_the_threshold() -> None:
-    assert legendary_item_ids(ITEMS) == {3031, 3089}
+def test_legendaries_are_finished_rift_items_above_the_threshold_across_versions() -> None:
+    assert legendary_item_names([ITEMS, OLDER]) == {"Infinity Edge", "Rabadon's Deathcap"}
+
+
+def test_ddragon_version_of_a_patch() -> None:
+    versions = ["16.15.1", "16.14.1", "15.24.1", "15.2.1"]
+    assert ddragon_version("16.14", versions) == "16.14.1"
+    assert ddragon_version("15.2", versions) == "15.2.1"
+    assert ddragon_version("14.1", versions) is None
 ```
 
 `backend/tests/knowledge/test_features.py`:
@@ -3648,13 +4470,15 @@ from throughline.knowledge.features import participant_features
 
 
 def test_features_per_participant() -> None:
-    game = (GameBuilder(duration=1000.0)
-            .gold_lead("blue", 1000, 0.0, 300.0)
-            .item(800.0, 3, 3089)
-            .item(820.0, 3, 1038)
-            .objective(330.0, "dragon", "blue")
-            .build())
-    rows = {(r.side, r.role): r for r in participant_features(game, legendary={3089})}
+    game = (
+        GameBuilder(duration=1000.0)
+        .gold_lead("blue", 1000, 0.0, 300.0)
+        .item(800.0, 3, "Rabadon's Deathcap")
+        .item(820.0, 3, "Needlessly Large Rod")
+        .objective(330.0, "dragon", "blue")
+        .build()
+    )
+    rows = {(r.side, r.role): r for r in participant_features(game, legendary={"Rabadon's Deathcap"})}
     mid = rows[("blue", "mid")]
     assert (mid.champion, mid.opponent, mid.won) == ("Ahri", "Orianna", True)
     assert mid.team_gd[5] == 1000 and mid.team_gd[15] == 1000
@@ -3668,6 +4492,13 @@ def test_features_per_participant() -> None:
     assert rows[("blue", "top")].gd_after_item1 is None  # no legendary bought
     assert mid.first_dragon is True and rows[("red", "top")].first_dragon is False
     assert mid.first_grubs is None
+    assert (mid.dragon_spawn, mid.grubs_spawn, mid.baron_spawn) == (300.0, 480.0, None)
+
+
+def test_feature_spawns_come_from_the_feed_when_present() -> None:
+    game = GameBuilder(duration=1300.0).spawn(294.0, "dragon").spawn(1180.0, "baron").build()
+    row = participant_features(game, legendary=set())[0]
+    assert (row.dragon_spawn, row.baron_spawn, row.grubs_spawn) == (294.0, 1180.0, None)
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -3677,6 +4508,9 @@ Expected: FAIL with `ModuleNotFoundError`
 
 - [ ] **Step 3: Implement items**
 
+The feed names items in English and has no item ids, so legendaries are matched by name, across the Data Dragon versions of every patch in the data (an item can be renamed or removed between patches).
+On the real data, 1 purchase in 484,849 had no Data Dragon name.
+
 `backend/throughline/knowledge/__init__.py`: empty.
 
 `backend/throughline/knowledge/items.py`:
@@ -3685,6 +4519,7 @@ Expected: FAIL with `ModuleNotFoundError`
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -3695,31 +4530,48 @@ LEGENDARY_MIN_GOLD = 2200
 EXCLUDED_TAGS = {"Boots", "Consumable", "Trinket"}
 
 
-def legendary_item_ids(item_json: dict[str, Any]) -> set[int]:
-    out: set[int] = set()
-    for key, item in item_json["data"].items():
-        gold = item.get("gold", {})
-        if not item.get("maps", {}).get("11", False):
-            continue
-        if not gold.get("purchasable", False) or gold.get("total", 0) < LEGENDARY_MIN_GOLD:
-            continue
-        if item.get("into") or EXCLUDED_TAGS & set(item.get("tags", [])):
-            continue
-        out.add(int(key))
+def legendary_item_names(item_jsons: Iterable[dict[str, Any]]) -> set[str]:
+    """Finished Summoner's Rift items at or above LEGENDARY_MIN_GOLD, by name, across Data Dragon versions.
+
+    The feed names items in English, so names are the join key.
+    """
+    out: set[str] = set()
+    for item_json in item_jsons:
+        for item in item_json["data"].values():
+            gold = item.get("gold", {})
+            if not item.get("maps", {}).get("11", False):
+                continue
+            if not gold.get("purchasable", False) or gold.get("total", 0) < LEGENDARY_MIN_GOLD:
+                continue
+            if item.get("into") or EXCLUDED_TAGS & set(item.get("tags", [])):
+                continue
+            out.add(str(item["name"]))
     return out
 
 
-def fetch_item_json(cache_dir: Path, http: httpx.Client | None = None) -> dict[str, Any]:
+def ddragon_version(patch: str, versions: list[str]) -> str | None:
+    """The first Data Dragon version of a patch: "16.14" -> "16.14.1"."""
+    return next((v for v in versions if v.startswith(f"{patch}.")), None)
+
+
+def fetch_item_jsons(
+    patches: Iterable[str], cache_dir: Path, http: httpx.Client | None = None
+) -> list[dict[str, Any]]:
+    """item.json for every patch that Data Dragon knows, cached on disk."""
     client = http or httpx.Client(timeout=30.0)
-    version = client.get(f"{DDRAGON}/api/versions.json").json()[0]
-    path = cache_dir / f"items-{version}.json"
-    if path.exists():
-        cached: dict[str, Any] = json.loads(path.read_text())
-        return cached
-    body: dict[str, Any] = client.get(f"{DDRAGON}/cdn/{version}/data/en_US/item.json").json()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(body))
-    return body
+    versions: list[str] = client.get(f"{DDRAGON}/api/versions.json").json()
+    out: list[dict[str, Any]] = []
+    for patch in sorted(set(patches)):
+        version = ddragon_version(patch, versions)
+        if version is None:
+            continue
+        path = cache_dir / f"items-{version}.json"
+        if not path.exists():
+            body = client.get(f"{DDRAGON}/cdn/{version}/data/en_US/item.json").json()
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(body))
+        out.append(json.loads(path.read_text()))
+    return out
 ```
 
 - [ ] **Step 4: Implement features**
@@ -3734,11 +4586,13 @@ from datetime import datetime
 
 from throughline.game.index import GameIndex
 from throughline.game.model import Game, ObjectiveKind, Role, Side, other
+from throughline.game.setups import objective_instances
 
 CURVE_MINUTES = (5, 10, 15, 20, 25, 30)
 SPIKE_AFTER = 180.0
 ROLE_GD_10 = 600.0
 ROLE_GD_14 = 840.0
+FIRST_TAKES: tuple[ObjectiveKind, ...] = ("dragon", "grubs", "herald", "baron")
 
 
 @dataclass(frozen=True)
@@ -3763,6 +4617,10 @@ class ParticipantFeatures:
     first_grubs: bool | None
     first_herald: bool | None
     first_baron: bool | None
+    dragon_spawn: float | None
+    grubs_spawn: float | None
+    herald_spawn: float | None
+    baron_spawn: float | None
 
 
 def _first_taker(game: Game, kind: ObjectiveKind) -> Side | None:
@@ -3770,7 +4628,7 @@ def _first_taker(game: Game, kind: ObjectiveKind) -> Side | None:
     return taken.by if taken else None
 
 
-def participant_features(game: Game, legendary: set[int]) -> list[ParticipantFeatures]:
+def participant_features(game: Game, legendary: set[str]) -> list[ParticipantFeatures]:
     index = GameIndex(game)
     duration = game.duration
 
@@ -3779,41 +4637,56 @@ def participant_features(game: Game, legendary: set[int]) -> list[ParticipantFea
             return None
         return index.gold_diff(side, t + SPIKE_AFTER) - index.gold_diff(side, t)
 
-    takers = {kind: _first_taker(game, kind) for kind in ("dragon", "grubs", "herald", "baron")}
+    takers = {kind: _first_taker(game, kind) for kind in FIRST_TAKES}
+    spawns: dict[ObjectiveKind, float] = {}
+    for instance in objective_instances(game):
+        spawns.setdefault(instance.kind, instance.spawn_at)
     rows: list[ParticipantFeatures] = []
     for p in game.participants:
         opponent = game.player(other(p.side), p.role)
         level6 = next((f.t for f in game.frames if f.pid == p.pid and f.level >= 6), None)
         bought: list[float] = []
-        seen: set[int] = set()
+        seen: set[str] = set()
         for purchase in game.items:
-            if purchase.pid == p.pid and purchase.item_id in legendary and purchase.item_id not in seen:
-                seen.add(purchase.item_id)
+            if purchase.pid == p.pid and purchase.item in legendary and purchase.item not in seen:
+                seen.add(purchase.item)
                 bought.append(purchase.t)
         item1 = bought[0] if bought else None
-        rows.append(ParticipantFeatures(
-            game_id=game.meta.game_id,
-            started_at=game.meta.started_at,
-            patch=game.patch,
-            side=p.side,
-            role=p.role,
-            champion=p.champion,
-            opponent=opponent.champion,
-            won=game.winner == p.side,
-            team_gd={m: index.gold_diff(p.side, m * 60.0) if m * 60.0 <= duration else None
-                     for m in CURVE_MINUTES},
-            role_gd10=index.role_gold_diff(p.side, p.role, ROLE_GD_10) if duration >= ROLE_GD_10 else None,
-            role_gd14=index.role_gold_diff(p.side, p.role, ROLE_GD_14) if duration >= ROLE_GD_14 else None,
-            level6_at=level6,
-            item1_at=item1,
-            item2_at=bought[1] if len(bought) > 1 else None,
-            gd_after_level6=gd_after(p.side, level6),
-            gd_after_item1=gd_after(p.side, item1),
-            first_dragon=None if takers["dragon"] is None else takers["dragon"] == p.side,
-            first_grubs=None if takers["grubs"] is None else takers["grubs"] == p.side,
-            first_herald=None if takers["herald"] is None else takers["herald"] == p.side,
-            first_baron=None if takers["baron"] is None else takers["baron"] == p.side,
-        ))
+        rows.append(
+            ParticipantFeatures(
+                game_id=game.meta.game_id,
+                started_at=game.meta.started_at,
+                patch=game.patch,
+                side=p.side,
+                role=p.role,
+                champion=p.champion,
+                opponent=opponent.champion,
+                won=game.winner == p.side,
+                team_gd={
+                    m: index.gold_diff(p.side, m * 60.0) if m * 60.0 <= duration else None
+                    for m in CURVE_MINUTES
+                },
+                role_gd10=index.role_gold_diff(p.side, p.role, ROLE_GD_10)
+                if duration >= ROLE_GD_10
+                else None,
+                role_gd14=index.role_gold_diff(p.side, p.role, ROLE_GD_14)
+                if duration >= ROLE_GD_14
+                else None,
+                level6_at=level6,
+                item1_at=item1,
+                item2_at=bought[1] if len(bought) > 1 else None,
+                gd_after_level6=gd_after(p.side, level6),
+                gd_after_item1=gd_after(p.side, item1),
+                first_dragon=None if takers["dragon"] is None else takers["dragon"] == p.side,
+                first_grubs=None if takers["grubs"] is None else takers["grubs"] == p.side,
+                first_herald=None if takers["herald"] is None else takers["herald"] == p.side,
+                first_baron=None if takers["baron"] is None else takers["baron"] == p.side,
+                dragon_spawn=spawns.get("dragon"),
+                grubs_spawn=spawns.get("grubs"),
+                herald_spawn=spawns.get("herald"),
+                baron_spawn=spawns.get("baron"),
+            )
+        )
     return rows
 ```
 
@@ -3827,7 +4700,8 @@ CREATE TABLE IF NOT EXISTS participant_features (
   won BOOLEAN, gd5 INTEGER, gd10 INTEGER, gd15 INTEGER, gd20 INTEGER, gd25 INTEGER, gd30 INTEGER,
   role_gd10 INTEGER, role_gd14 INTEGER, level6_at DOUBLE, item1_at DOUBLE, item2_at DOUBLE,
   gd_after_level6 INTEGER, gd_after_item1 INTEGER,
-  first_dragon BOOLEAN, first_grubs BOOLEAN, first_herald BOOLEAN, first_baron BOOLEAN);
+  first_dragon BOOLEAN, first_grubs BOOLEAN, first_herald BOOLEAN, first_baron BOOLEAN,
+  dragon_spawn DOUBLE, grubs_spawn DOUBLE, herald_spawn DOUBLE, baron_spawn DOUBLE);
 ```
 
 Add the method:
@@ -3843,7 +4717,7 @@ Add the method:
         self._insert("participant_features", records)
 ```
 
-with `from throughline.knowledge.features import ParticipantFeatures` at the top.
+with `from throughline.knowledge.features import ParticipantFeatures` among the imports at the top.
 
 Add a round-trip test to `backend/tests/store/test_analytics.py`:
 
@@ -3869,7 +4743,11 @@ Add to `backend/throughline/cli.py`:
 
 ```python
 from throughline.knowledge.features import participant_features
-from throughline.knowledge.items import fetch_item_json, legendary_item_ids
+from throughline.knowledge.items import fetch_item_jsons, legendary_item_names
+
+
+def _patches(store: AnalyticsStore) -> list[str]:
+    return [str(r[0]) for r in store.con.execute("SELECT DISTINCT patch FROM games").fetchall()]
 
 
 @app.command()
@@ -3878,7 +4756,7 @@ def build() -> None:
     settings = Settings.from_env()
     store = AnalyticsStore(settings.analytics_db)
     store.init_schema()
-    legendary = legendary_item_ids(fetch_item_json(settings.data_dir / "ddragon"))
+    legendary = legendary_item_names(fetch_item_jsons(_patches(store), settings.data_dir / "ddragon"))
     ids = store.game_ids_by_time()
     for n, game_id in enumerate(ids, start=1):
         store.write_features(game_id, participant_features(store.load_game(game_id), legendary))
@@ -3889,7 +4767,7 @@ def build() -> None:
 - [ ] **Step 7: Run all tests, lint and types; build on real data**
 
 Run: `cd backend && uv run pytest -v && uv run mypy throughline && uv run ruff check . && uv run throughline build`
-Expected: all pass; `build` reports every game. Spot-check in DataGrip: `SELECT champion, count(*), avg(gd15) FROM participant_features GROUP BY 1 ORDER BY 2 DESC LIMIT 20` (save the query as a DataGrip scratch for the build log).
+Expected: all pass; `build` reports every game in about 30 seconds; on the real data, 99.9% of players have a first legendary (median 12:36) and a level-6 time (median 6:51). Spot-check in DataGrip: `SELECT champion, count(*), avg(gd15) FROM participant_features GROUP BY 1 ORDER BY 2 DESC LIMIT 20` (save the query as a DataGrip scratch for the build log).
 
 - [ ] **Step 8: Commit**
 
@@ -3907,11 +4785,14 @@ git commit -m "feat(knowledge): participant features and the build command"
 **Interfaces:**
 - Consumes: `AnalyticsStore` with `participant_features` (Task 11).
 - Produces:
-  - `PRIOR_GAMES = 20.0`, `MIN_MATCHUP_GAMES = 5`, `MIN_SPIKE_GAMES = 10`, `PATCH_WINDOW = 3`, `MIN_SCOPE_GAMES = 200`.
+  - `PRIOR_GAMES = 20.0`, `MIN_MATCHUP_GAMES = 5`, `MIN_SPIKE_GAMES = 10`, `PATCH_WINDOW = 3`, `MIN_SCOPE_GAMES = 200`, `MIN_SPAWN_GAMES = 10`.
   - `shrink(mean: float, n: int, k: float = PRIOR_GAMES) -> float`, `patch_key(patch: str) -> tuple[int, int]`.
   - `Stat(value: float, games: int)`, `Spike(at: float, gd_after: float, games: int)` (frozen dataclasses).
-  - `KnowledgeSource` (Protocol): `scope_games: int`, `curve(role, champion) -> dict[int, Stat]`, `role_edge(role, champion) -> Stat`, `matchup(role, champion, opponent) -> Stat | None`, `spike(role, champion, kind: Literal["level6", "item1"]) -> Spike | None`, `tendency(champion, objective: Literal["dragon", "grubs", "herald", "baron"]) -> Stat`.
-  - `KnowledgeBase(store, patch: str, before: datetime | None = None, min_scope_games: int = MIN_SCOPE_GAMES)` implementing it, with `patches: list[str]` (empty when the scope fell back to every patch).
+  - `KnowledgeSource` (Protocol): `scope_games: int`, `curve(role, champion) -> dict[int, Stat]`, `role_edge(role, champion) -> Stat`, `matchup(role, champion, opponent) -> Stat | None`, `spike(role, champion, kind: Literal["level6", "item1"]) -> Spike | None`, `tendency(champion, objective: Literal["dragon", "grubs", "herald", "baron"]) -> Stat`, `first_spawn(objective) -> float | None` (median first spawn this season so far).
+  - `KnowledgeBase(store, patch: str, before: datetime | None = None, min_scope_games: int = MIN_SCOPE_GAMES)` implementing it, with `patches: list[str]`: the last `PATCH_WINDOW` patches up to `patch`, widened to the season so far and then to every patch (empty) until the scope has `min_scope_games` games.
+
+Seasons change the map, so the season comes before every game: on the real data a 16.14 draft fell back to every game and was told baron spawns at 24:40, the 2025 time, instead of 19:40.
+`first_spawn` always reads the season, because spawn times need few games and must not mix seasons.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3933,11 +4814,31 @@ T0 = datetime(2026, 10, 1, tzinfo=UTC)
 
 def row(n: int, **overrides: object) -> ParticipantFeatures:
     base = ParticipantFeatures(
-        game_id=f"g{n}", started_at=T0 + timedelta(days=n), patch="15.23", side="blue", role="mid",
-        champion="Ahri", opponent="Orianna", won=True, team_gd={m: 0 for m in CURVE_MINUTES},
-        role_gd10=0, role_gd14=0, level6_at=400.0, item1_at=800.0, item2_at=None,
-        gd_after_level6=0, gd_after_item1=0, first_dragon=None, first_grubs=None, first_herald=None,
-        first_baron=None)
+        game_id=f"g{n}",
+        started_at=T0 + timedelta(days=n),
+        patch="15.23",
+        side="blue",
+        role="mid",
+        champion="Ahri",
+        opponent="Orianna",
+        won=True,
+        team_gd={m: 0 for m in CURVE_MINUTES},
+        role_gd10=0,
+        role_gd14=0,
+        level6_at=400.0,
+        item1_at=800.0,
+        item2_at=None,
+        gd_after_level6=0,
+        gd_after_item1=0,
+        first_dragon=None,
+        first_grubs=None,
+        first_herald=None,
+        first_baron=None,
+        dragon_spawn=294.0,
+        grubs_spawn=473.0,
+        herald_spawn=897.0,
+        baron_spawn=1180.0,
+    )
     return replace(base, **overrides)  # type: ignore[arg-type]
 
 
@@ -3968,13 +4869,21 @@ def test_curve_is_shrunk_by_sample(store: AnalyticsStore) -> None:
 
 
 def test_patch_window_and_time_split(store: AnalyticsStore) -> None:
-    rows = [row(1, patch="15.20", role_gd10=1000), row(2, patch="15.21", role_gd10=100),
-            row(3, patch="15.22", role_gd10=100), row(4, patch="15.23", role_gd10=100),
-            row(5, patch="15.23", role_gd10=100), row(6, patch="15.24", role_gd10=100)]
+    rows = [
+        row(1, patch="15.20", role_gd10=1000),
+        row(2, patch="15.21", role_gd10=100),
+        row(3, patch="15.22", role_gd10=100),
+        row(4, patch="15.23", role_gd10=100),
+        row(5, patch="15.23", role_gd10=100),
+        row(6, patch="15.24", role_gd10=100),
+    ]
     write(store, rows)
     kb = KnowledgeBase(store, "15.23", before=T0 + timedelta(days=5), min_scope_games=1)
     assert kb.patches == ["15.21", "15.22", "15.23"]
     assert kb.scope_games == 3  # g2, g3, g4: g5 is not before day 5, g1 is outside the window
+    season = KnowledgeBase(store, "15.23", min_scope_games=5)
+    assert season.patches == ["15.20", "15.21", "15.22", "15.23"]
+    assert season.scope_games == 5
     fallback = KnowledgeBase(store, "15.23", min_scope_games=100)
     assert fallback.patches == []
     assert fallback.scope_games == 6
@@ -3991,8 +4900,9 @@ def test_matchup_needs_enough_games(store: AnalyticsStore) -> None:
 
 
 def test_spike_and_tendency(store: AnalyticsStore) -> None:
-    write(store, [row(n, level6_at=380.0 + n, gd_after_level6=400, first_dragon=n % 4 != 0)
-                  for n in range(20)])
+    write(
+        store, [row(n, level6_at=380.0 + n, gd_after_level6=400, first_dragon=n % 4 != 0) for n in range(20)]
+    )
     kb = KnowledgeBase(store, "15.23", min_scope_games=1)
     spike = kb.spike("mid", "Ahri", "level6")
     assert spike is not None
@@ -4000,6 +4910,23 @@ def test_spike_and_tendency(store: AnalyticsStore) -> None:
     assert spike.gd_after == pytest.approx(200.0)
     assert kb.tendency("Ahri", "dragon").value == pytest.approx(shrink(0.75 - 0.5, 20))
     assert kb.spike("mid", "Zed", "level6") is None
+
+
+def test_first_spawn_is_the_median_in_scope(store: AnalyticsStore) -> None:
+    write(store, [row(n, dragon_spawn=290.0 + n % 3) for n in range(12)])
+    kb = KnowledgeBase(store, "15.23", min_scope_games=1)
+    assert kb.first_spawn("dragon") == 291.0
+    assert kb.first_spawn("baron") == 1180.0
+    few = KnowledgeBase(store, "15.23", before=T0 + timedelta(days=5), min_scope_games=1)
+    assert few.first_spawn("dragon") is None  # fewer than MIN_SPAWN_GAMES games
+
+
+def test_first_spawn_reads_the_season_even_when_statistics_widen(store: AnalyticsStore) -> None:
+    write(store, [row(n, patch="15.23", baron_spawn=1480.0) for n in range(12)])
+    write(store, [row(20 + n, patch="16.1", baron_spawn=1180.0) for n in range(12)])
+    kb = KnowledgeBase(store, "16.1", min_scope_games=100)
+    assert kb.patches == []  # champion statistics use every game...
+    assert kb.first_spawn("baron") == 1180.0  # ...spawn times stay in the season
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -4027,6 +4954,7 @@ MIN_MATCHUP_GAMES = 5
 MIN_SPIKE_GAMES = 10
 PATCH_WINDOW = 3
 MIN_SCOPE_GAMES = 200
+MIN_SPAWN_GAMES = 10
 
 SpikeKind = Literal["level6", "item1"]
 TendencyKind = Literal["dragon", "grubs", "herald", "baron"]
@@ -4070,29 +4998,42 @@ class KnowledgeSource(Protocol):
     def matchup(self, role: Role, champion: str, opponent: str) -> Stat | None: ...
     def spike(self, role: Role, champion: str, kind: SpikeKind) -> Spike | None: ...
     def tendency(self, champion: str, objective: TendencyKind) -> Stat: ...
+    def first_spawn(self, objective: TendencyKind) -> float | None: ...
 
 
 class KnowledgeBase:
     """Aggregates over participant_features, limited to a patch window and to games before a time."""
 
-    def __init__(self, store: AnalyticsStore, patch: str, before: datetime | None = None,
-                 min_scope_games: int = MIN_SCOPE_GAMES) -> None:
+    def __init__(
+        self,
+        store: AnalyticsStore,
+        patch: str,
+        before: datetime | None = None,
+        min_scope_games: int = MIN_SCOPE_GAMES,
+    ) -> None:
         self.con = store.con
         time_sql, time_params = ("started_at < ?", [before]) if before else ("TRUE", [])
         known = sorted(
-            {r[0] for r in self.con.execute(
-                f"SELECT DISTINCT patch FROM participant_features WHERE {time_sql}", time_params).fetchall()
-             if r[0]},
+            {
+                r[0]
+                for r in self.con.execute(
+                    f"SELECT DISTINCT patch FROM participant_features WHERE {time_sql}", time_params
+                ).fetchall()
+                if r[0]
+            },
             key=patch_key,
         )
-        window = [p for p in known if patch_key(p) <= patch_key(patch)][-PATCH_WINDOW:]
-        self.patches = window
-        self._where, self._params = self._scope(time_sql, time_params, window)
-        self.scope_games = self._count_games()
-        if self.scope_games < min_scope_games:
-            self.patches = []
-            self._where, self._params = self._scope(time_sql, time_params, [])
+        upto = [p for p in known if patch_key(p) <= patch_key(patch)]
+        season = [p for p in upto if patch_key(p)[0] == patch_key(patch)[0]]
+        # Widen until there are enough games: the patch window, the season so far, then every game.
+        # Seasons change the map (spawn times, objectives), so the season comes before everything.
+        self._season_where, self._season_params = self._scope(time_sql, time_params, season)
+        for patches in (upto[-PATCH_WINDOW:], season, []):
+            self.patches = patches
+            self._where, self._params = self._scope(time_sql, time_params, patches)
             self.scope_games = self._count_games()
+            if patches and self.scope_games >= min_scope_games:
+                break
 
     @staticmethod
     def _scope(time_sql: str, time_params: list[Any], patches: list[str]) -> tuple[str, list[Any]]:
@@ -4109,7 +5050,8 @@ class KnowledgeBase:
 
     def _one(self, select: str, where: str, params: list[Any]) -> tuple[Any, ...]:
         row = self.con.execute(
-            f"SELECT {select} FROM participant_features WHERE {self._where} AND {where}", [*self._params, *params]
+            f"SELECT {select} FROM participant_features WHERE {self._where} AND {where}",
+            [*self._params, *params],
         ).fetchone()
         assert row is not None
         return tuple(row)
@@ -4128,23 +5070,48 @@ class KnowledgeBase:
         return Stat(shrink(float(mean or 0.0), int(n)), int(n))
 
     def matchup(self, role: Role, champion: str, opponent: str) -> Stat | None:
-        mean, n = self._one("avg(role_gd10), count(role_gd10)", "role = ? AND champion = ? AND opponent = ?",
-                            [role, champion, opponent])
+        mean, n = self._one(
+            "avg(role_gd10), count(role_gd10)",
+            "role = ? AND champion = ? AND opponent = ?",
+            [role, champion, opponent],
+        )
         return Stat(float(mean), int(n)) if int(n) >= MIN_MATCHUP_GAMES else None
 
     def spike(self, role: Role, champion: str, kind: SpikeKind) -> Spike | None:
         at_col, gd_col = SPIKE_COLUMNS[kind]
-        at, gd, n = self._one(f"median({at_col}), avg({gd_col}), count({gd_col})",
-                              f"role = ? AND champion = ? AND {at_col} IS NOT NULL", [role, champion])
+        at, gd, n = self._one(
+            f"median({at_col}), avg({gd_col}), count({gd_col})",
+            f"role = ? AND champion = ? AND {at_col} IS NOT NULL",
+            [role, champion],
+        )
         if int(n) < MIN_SPIKE_GAMES or at is None:
             return None
         return Spike(float(at), shrink(float(gd or 0.0), int(n)), int(n))
 
     def tendency(self, champion: str, objective: TendencyKind) -> Stat:
         column = f"first_{objective}"
-        rate, n = self._one(f"avg(CASE WHEN {column} THEN 1.0 ELSE 0.0 END), count({column})",
-                            f"champion = ? AND {column} IS NOT NULL", [champion])
+        rate, n = self._one(
+            f"avg(CASE WHEN {column} THEN 1.0 ELSE 0.0 END), count({column})",
+            f"champion = ? AND {column} IS NOT NULL",
+            [champion],
+        )
         return Stat(shrink(float(rate) - 0.5, int(n)) if rate is not None else 0.0, int(n))
+
+    def first_spawn(self, objective: TendencyKind) -> float | None:
+        """The median first spawn this season so far, on the feed's clock.
+
+        Spawn times are a property of the map, which changes between seasons, so this reads the season
+        even when the champion statistics had to widen to every game.
+        """
+        column = f"{objective}_spawn"
+        row = self.con.execute(
+            f"SELECT median({column}), count(DISTINCT game_id) FROM participant_features "
+            f"WHERE {self._season_where} AND {column} IS NOT NULL",
+            self._season_params,
+        ).fetchone()
+        assert row is not None
+        at, n = row
+        return float(at) if at is not None and int(n) >= MIN_SPAWN_GAMES else None
 ```
 
 - [ ] **Step 4: Run the tests, lint and types**
@@ -4171,7 +5138,7 @@ git commit -m "feat(knowledge): KnowledgeBase with patch windows, time split and
 
 **Interfaces:**
 - Produces:
-  - `constants`: `WINDOW_GOLD = 300.0`, `LANE_GOLD = 150.0`, `SPIKE_GOLD = 250.0`, `TENDENCY_UNIT = 0.10`, `OBJECTIVE_SIGNAL = 1.0`, `MIN_ITEM_GAMES = 10`, `CONFIDENT_GAMES = 50`, `MAX_ITEMS = 8`, `LANE_UNTIL = 480.0`, `SIDE_UNTIL = 360.0`, `SIDE_WEIGHT = 0.8`, `OBJECTIVE_LEAD = 20.0`, `OBJECTIVE_MIN_PLAYERS = 3`, `OBJECTIVE_MIN_WARDS = 2`, `PLAN_OBJECTIVES = ("dragon", "grubs", "herald")`, `OBJECTIVE_LANES`, `TRADE_FALLBACK`, `OBJECTIVE_NAMES`.
+  - `constants`: `WINDOW_GOLD = 300.0`, `LANE_GOLD = 150.0`, `SPIKE_GOLD = 250.0`, `TENDENCY_UNIT = 0.10`, `OBJECTIVE_SIGNAL = 1.0`, `MIN_ITEM_GAMES = 10`, `CONFIDENT_GAMES = 50`, `MAX_ITEMS = 8`, `LANE_UNTIL = 480.0`, `SIDE_UNTIL = 360.0`, `SIDE_WEIGHT = 0.8`, `OBJECTIVE_LEAD = 20.0`, `OBJECTIVE_MIN_PLAYERS = 3`, `PLAN_OBJECTIVES = ("dragon", "grubs", "herald")`, `OBJECTIVE_LANES`, `TRADE_FALLBACK`, `OBJECTIVE_NAMES`.
   - `models`: `Owner = Literal["us", "them"]`, `PlanObjective = Literal["dragon", "grubs", "herald"]`, pydantic models `Evidence(text, games)`, `ObjectiveItem`, `ConcedeItem`, `LaneItem`, `WindowItem`, `SpikeItem`, `SideItem` (all with `id`, `text`, `evidence: list[Evidence]`, `score`, `origin`), `PlanItem` (discriminated union on `type`), `Draft(blue, red, us, patch: str | None)` with `ours()`, `theirs()`, `TempoPoint(minute, value, games)`, `Window(start, end, owner, peak, games)`, `LanePriority(lane, owner: Owner | None, value, games, detail)`, `Plan(draft, items, tempo, windows, lanes, scope_games)`; `item_time(item) -> float`.
   - `text`: `fmt_time(seconds) -> str`, `fmt_gold(value) -> str` (`"+1,240"`, `"-300"`).
 
@@ -4237,6 +5204,8 @@ Expected: FAIL with `ModuleNotFoundError`
 
 from __future__ import annotations
 
+from typing import Literal
+
 from throughline.game.model import Lane
 
 WINDOW_GOLD = 300.0          # draft tempo beyond this is a window
@@ -4252,9 +5221,8 @@ SIDE_UNTIL = 360.0
 SIDE_WEIGHT = 0.8
 OBJECTIVE_LEAD = 20.0        # be set up this long before the spawn
 OBJECTIVE_MIN_PLAYERS = 3
-OBJECTIVE_MIN_WARDS = 2
 
-PLAN_OBJECTIVES = ("dragon", "grubs", "herald")
+PLAN_OBJECTIVES: tuple[Literal["dragon", "grubs", "herald"], ...] = ("dragon", "grubs", "herald")
 OBJECTIVE_LANES: dict[str, tuple[Lane, ...]] = {"dragon": ("bot",), "grubs": ("top",), "herald": ("top", "mid")}
 TRADE_FALLBACK: dict[str, list[Lane]] = {"dragon": ["top"], "grubs": ["bot"], "herald": ["bot"]}
 OBJECTIVE_NAMES = {"dragon": "first dragon", "grubs": "void grubs", "herald": "Rift Herald"}
@@ -4308,12 +5276,16 @@ class ItemBase(BaseModel):
 
 
 class ObjectiveItem(ItemBase):
+    """Contest an objective: `min_players` near the pit by `by`, and grouped there before the enemy.
+
+    The feed has no wards, so the second promise is about timing, not vision.
+    """
+
     type: Literal["objective"] = "objective"
     objective: PlanObjective
     spawn_at: float
     by: float
     min_players: int = 3
-    min_wards: int = 2
 
 
 class ConcedeItem(ItemBase):
@@ -4465,6 +5437,7 @@ class FakeKnowledge:
     matchups: dict[tuple[str, str], float] = field(default_factory=dict)
     spikes: dict[tuple[str, SpikeKind], tuple[float, float]] = field(default_factory=dict)  # (at, gd_after)
     tendencies: dict[tuple[str, TendencyKind], float] = field(default_factory=dict)
+    spawns: dict[TendencyKind, float] = field(default_factory=dict)  # objective -> first spawn
 
     def curve(self, role: Role, champion: str) -> dict[int, Stat]:
         values = self.curves.get(champion, {})
@@ -4483,6 +5456,9 @@ class FakeKnowledge:
 
     def tendency(self, champion: str, objective: TendencyKind) -> Stat:
         return Stat(self.tendencies.get((champion, objective), 0.0), self.games)
+
+    def first_spawn(self, objective: TendencyKind) -> float | None:
+        return self.spawns.get(objective)
 ```
 
 `backend/tests/plan/test_tempo.py`:
@@ -4647,7 +5623,7 @@ git commit -m "feat(plan): draft tempo, windows and lane priorities"
 - Test: `backend/tests/plan/test_generator.py`
 
 **Interfaces:**
-- Consumes: Tasks 12-14; `SPAWNS` (Task 7).
+- Consumes: Tasks 12-14; `KnowledgeSource.first_spawn` (Task 12), with `SPAWNS` (Task 7) as the fallback.
 - Produces: `confidence(games) -> float`, `build_plan(kb: KnowledgeSource, draft: Draft) -> Plan`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -4680,11 +5656,20 @@ def test_early_draft_plan() -> None:
     dragon = next(i for i in plan.items if i.id == "objective-dragon")
     assert isinstance(dragon, ObjectiveItem)
     assert dragon.by == 280.0
-    assert dragon.text.startswith("Contest first dragon (5:00): 3+ near the pit by 4:40")
+    assert dragon.text == "Contest first dragon (5:00): 3+ near the pit by 4:40, grouped there before them."
     assert all(e.games == 60 for e in dragon.evidence)
     times = [item_time(i) for i in plan.items]
     assert times == sorted(times)
     assert plan.scope_games == 600
+
+
+def test_objective_times_follow_the_seasons_spawns() -> None:
+    kb = early_blue()
+    kb.spawns = {"dragon": 294.0}
+    dragon = next(i for i in build_plan(kb, DRAFT).items if i.id == "objective-dragon")
+    assert isinstance(dragon, ObjectiveItem)
+    assert (dragon.spawn_at, dragon.by) == (294.0, 274.0)
+    assert dragon.text.startswith("Contest first dragon (4:54): 3+ near the pit by 4:34")
 
 
 def test_late_draft_concedes_dragon_and_trades() -> None:
@@ -4735,7 +5720,6 @@ from throughline.plan.constants import (
     OBJECTIVE_LANES,
     OBJECTIVE_LEAD,
     OBJECTIVE_MIN_PLAYERS,
-    OBJECTIVE_MIN_WARDS,
     OBJECTIVE_NAMES,
     OBJECTIVE_SIGNAL,
     PLAN_OBJECTIVES,
@@ -4776,7 +5760,8 @@ def _objective_items(kb: KnowledgeSource, draft: Draft, tempo: list[TempoPoint],
                      lanes: dict[Lane, LanePriority]) -> list[PlanItem]:
     items: list[PlanItem] = []
     for objective in PLAN_OBJECTIVES:
-        spawn = SPAWNS[objective][0]
+        observed = kb.first_spawn(objective)
+        spawn = observed if observed is not None else SPAWNS[objective][0]
         name = OBJECTIVE_NAMES[objective]
         lane_list = OBJECTIVE_LANES[objective]
         lane_value = mean(lanes[lane].value for lane in lane_list)
@@ -4799,9 +5784,9 @@ def _objective_items(kb: KnowledgeSource, draft: Draft, tempo: list[TempoPoint],
             by = spawn - OBJECTIVE_LEAD
             items.append(ObjectiveItem(
                 id=f"objective-{objective}", objective=objective, spawn_at=spawn, by=by,
-                min_players=OBJECTIVE_MIN_PLAYERS, min_wards=OBJECTIVE_MIN_WARDS, evidence=evidence, score=score,
+                min_players=OBJECTIVE_MIN_PLAYERS, evidence=evidence, score=score,
                 text=(f"Contest {name} ({fmt_time(spawn)}): {OBJECTIVE_MIN_PLAYERS}+ near the pit by "
-                      f"{fmt_time(by)}, {OBJECTIVE_MIN_WARDS}+ wards there."),
+                      f"{fmt_time(by)}, grouped there before them."),
             ))
         elif signal <= -OBJECTIVE_SIGNAL:
             trade = [lane for lane, p in lanes.items() if p.owner == "us"] or TRADE_FALLBACK[objective]
@@ -5406,7 +6391,7 @@ interface ItemBase {
 }
 
 export type PlanItem =
-  | (ItemBase & { type: "objective"; objective: string; spawn_at: number; by: number; min_players: number; min_wards: number })
+  | (ItemBase & { type: "objective"; objective: string; spawn_at: number; by: number; min_players: number })
   | (ItemBase & { type: "concede"; objective: string; spawn_at: number; trade_lanes: Lane[] })
   | (ItemBase & { type: "lane"; lane: Lane; until: number })
   | (ItemBase & { type: "window"; stance: "force" | "avoid"; start: number; end: number })
@@ -5980,13 +6965,13 @@ git commit -m "feat(frontend): draft tempo chart"
 - Test: `backend/tests/review/__init__.py`, `backend/tests/review/test_checks.py`
 
 **Interfaces:**
-- Consumes: `GameIndex`, `detect_fights`, `objective_instances`, `wards_near`, `SETUP_WINDOW`, `objective_center`, `PIT_RADIUS`, `half_of`, `lane_at`, plan item models.
+- Consumes: `GameIndex`, `detect_fights`, `objective_instances`, `setup_for`, `GROUP_SIZE`, `objective_center`, `PIT_RADIUS`, `half_of`, `lane_at`, plan item models.
 - Produces:
   - `ReviewContext(game, index, us, fights, instances)` with `ReviewContext.build(game, us)` and property `them`.
   - `Status = Literal["followed", "partly", "not_followed", "not_applicable"]`.
   - `ItemCheck(item_id, status, numbers, at, clip: tuple[float, float])` (pydantic).
   - `check_item(item: PlanItem, ctx: ReviewContext) -> ItemCheck`.
-  - `plural(n, word) -> str` (`"1 ward"`, `"2 wards"`).
+  - `plural(n, word) -> str` (`"1 fight"`, `"2 fights"`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -6014,21 +6999,27 @@ def grouped_at_dragon(builder: GameBuilder) -> GameBuilder:
 
 
 def test_objective_followed() -> None:
-    game = (grouped_at_dragon(GameBuilder(duration=1200.0))
-            .ward(230.0, 5, 9500.0, 4600.0).ward(240.0, 4, 9300.0, 4000.0)
-            .objective(320.0, "dragon", "blue").build())
+    game = grouped_at_dragon(GameBuilder(duration=1200.0)).objective(320.0, "dragon", "blue").build()
     check = check_item(dragon_item(), ReviewContext.build(game, "blue"))
     assert check.status == "followed"
-    assert check.numbers == "3 of 5 near the pit at 4:40, 2 wards; we took it at 5:20"
+    # They enter the pit radius at 228 s; grouping is sampled every 5 s from 210 s.
+    assert check.numbers == "3 of 5 near the pit at 4:40, grouped first at 3:50; we took it at 5:20"
     assert check.at == 280.0
 
 
-def test_objective_partly_without_wards_and_red_view() -> None:
-    game = grouped_at_dragon(GameBuilder(duration=1200.0)).objective(320.0, "dragon", "blue").build()
-    assert check_item(dragon_item(), ReviewContext.build(game, "blue")).status == "partly"
-    red = check_item(dragon_item(), ReviewContext.build(game, "red"))
+def test_objective_partly_when_they_group_first_and_red_view() -> None:
+    builder = grouped_at_dragon(GameBuilder(duration=1200.0))
+    for pid in (6, 7, 8):
+        builder.walk(pid, 150.0, 200.0, (12000.0, 3000.0), PIT)
+    game = builder.objective(320.0, "dragon", "blue").build()
+    check = check_item(dragon_item(), ReviewContext.build(game, "blue"))
+    assert check.status == "partly"
+    assert check.numbers == "3 of 5 near the pit at 4:40, grouped at 3:50, after them (3:30); we took it at 5:20"
+
+    alone = grouped_at_dragon(GameBuilder(duration=1200.0)).objective(320.0, "dragon", "blue").build()
+    red = check_item(dragon_item(), ReviewContext.build(alone, "red"))
     assert red.status == "not_followed"
-    assert red.numbers.endswith("they took it at 5:20")
+    assert red.numbers == "0 of 5 near the pit at 4:40, never 3+ there; they took it at 5:20"
 
 
 def test_objective_not_applicable_when_game_ends_first() -> None:
@@ -6149,9 +7140,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 from throughline.game.geometry import PIT_RADIUS, half_of, lane_at, objective_center
-from throughline.game.model import LANE_ROLES, ROLE_LANE
-from throughline.game.setups import SETUP_WINDOW, ObjectiveInstance
-from throughline.game.wards import wards_near
+from throughline.game.model import LANE_ROLES, ROLE_LANE, Side
+from throughline.game.setups import GROUP_SIZE, ObjectiveInstance, Setup, setup_for
 from throughline.plan.models import (
     ConcedeItem,
     LaneItem,
@@ -6207,6 +7197,17 @@ def _instance(ctx: ReviewContext, kind: str) -> ObjectiveInstance | None:
     return next((i for i in ctx.instances if i.kind == kind), None)
 
 
+def _grouping(setup: Setup | None, us: Side, them: Side) -> tuple[bool, str]:
+    """Whether `us` had GROUP_SIZE at the pit before `them`, and how to say it."""
+    ours = setup.grouped_at[us] if setup else None
+    theirs = setup.grouped_at[them] if setup else None
+    if ours is None:
+        return False, f"never {GROUP_SIZE}+ there"
+    if theirs is None or ours <= theirs:
+        return True, f"grouped first at {fmt_time(ours)}"
+    return False, f"grouped at {fmt_time(ours)}, after them ({fmt_time(theirs)})"
+
+
 def _check_objective(item: ObjectiveItem, ctx: ReviewContext) -> ItemCheck:
     inst = _instance(ctx, item.objective)
     if inst is None or item.spawn_at >= ctx.game.duration:
@@ -6214,8 +7215,8 @@ def _check_objective(item: ObjectiveItem, ctx: ReviewContext) -> ItemCheck:
     center = objective_center(item.objective, inst.taken)
     assert center is not None
     near = ctx.index.near(ctx.us, center, PIT_RADIUS, item.by)
-    wards = len(wards_near(ctx.game, ctx.us, center, PIT_RADIUS, item.spawn_at - SETUP_WINDOW, item.by))
-    status = _by_count(int(near >= item.min_players) + int(wards >= item.min_wards), 2)
+    first, grouping = _grouping(setup_for(ctx.index, inst), ctx.us, ctx.them)
+    status = _by_count(int(near >= item.min_players) + int(first), 2)
     if inst.taken is None:
         outcome = "nobody took it"
     else:
@@ -6223,7 +7224,7 @@ def _check_objective(item: ObjectiveItem, ctx: ReviewContext) -> ItemCheck:
     end = (inst.taken.t if inst.taken else item.spawn_at) + CLIP_AFTER
     return ItemCheck(
         item_id=item.id, status=status, at=item.by, clip=_clip(ctx, item.by - CLIP_BEFORE, end),
-        numbers=f"{near} of 5 near the pit at {fmt_time(item.by)}, {plural(wards, 'ward')}; {outcome}",
+        numbers=f"{near} of 5 near the pit at {fmt_time(item.by)}, {grouping}; {outcome}",
     )
 
 
@@ -6403,13 +7404,12 @@ def test_objective_setup_moment() -> None:
     builder = GameBuilder(duration=600.0)
     for pid in (6, 7, 8, 9):
         builder.walk(pid, 200.0, 260.0, (12000.0, 6000.0), PIT)
-    builder.ward(250.0, 10, 9600.0, 4300.0)
     game = builder.objective(321.0, "dragon", "red").build()
     moments = objective_setups(ReviewContext.build(game, "blue"))
     dragon = next(m for m in moments if m.id == "setup-dragon-300")
     assert dragon.verdict == "bad"
     # They are inside the 2,500-unit radius from 204 s; the first sample is at 210 s (3:30).
-    assert dragon.text == "Dragon 5:00: 0 vs 4 at the pit, wards 0-1; they grouped at 3:30; they took it at 5:21."
+    assert dragon.text == "Dragon 5:00: 0 vs 4 at the pit; they grouped at 3:30; they took it at 5:21."
     assert dragon.impact == 1000
 
 
@@ -6557,7 +7557,7 @@ def objective_setups(ctx: ReviewContext) -> list[Moment]:
                    for side, t in setup.grouped_at.items() if t is not None]
         parts = [
             f"{OBJECTIVE_TITLES[inst.kind]} {fmt_time(inst.spawn_at)}: {setup.near_at_spawn[us]} vs "
-            f"{setup.near_at_spawn[them]} at the pit, wards {setup.wards[us]}-{setup.wards[them]}",
+            f"{setup.near_at_spawn[them]} at the pit",
             "; ".join(grouped) if grouped else "nobody grouped",
         ]
         if inst.taken is None:
@@ -7780,7 +8780,7 @@ Expected: all pass, clean.
 
 - [ ] **Step 5: Run it on real data**
 
-Choose the holdout date so roughly the last 40% of games are in it. Every constant change from Tasks 15 and 20 must have been made looking only at games before that date.
+Choose the holdout date so roughly the last 40% of games are in it: on the starter data, 2025-08-20 (695 of 1,738 games, the end of the 2025 season and all of 2026). Every constant change from Tasks 15 and 20 must have been made looking only at games before that date.
 Run: `cd backend && uv run throughline validate --holdout-from <date>`
 Record the quartile win rates and the per-type adjusted differences in BUILD_LOG exactly as they come out.
 
@@ -7793,7 +8793,8 @@ git commit -m "feat(validation): time-split backtest of plan adherence against r
 
 ### Task 24: Synthetic dataset, static frontend and deployment
 
-Judges without a GRID key can run everything on synthetic games; the hosted demo serves the built frontend from the API.
+Anyone without the GRID starter data can run everything on synthetic games; the hosted demo serves the built frontend from the API.
+The starter data's license allows it only on the participant's machine, so the hosted demo runs the synthetic league unless the organizers give written permission to host the real data (see Step 8).
 
 **Files:**
 - Create: `backend/throughline/synthetic.py`, `Dockerfile`, `scripts/start.sh`, `.dockerignore`
@@ -7801,7 +8802,7 @@ Judges without a GRID key can run everything on synthetic games; the hosted demo
 - Test: `backend/tests/test_synthetic.py`, `backend/tests/api/test_static.py`
 
 **Interfaces:**
-- Produces: `synthetic_games(n: int, seed: int = 7) -> Iterator[Game]`, `OFFLINE_LEGENDARY: set[int]`; CLI `throughline seed --games 300`, `throughline build --offline`; `create_app` serving `settings.frontend_dist` with an SPA fallback for non-`/api` paths.
+- Produces: `synthetic_games(n: int, seed: int = 7) -> Iterator[Game]`, `OFFLINE_LEGENDARY: set[str]`; CLI `throughline seed --games 300`, `throughline build --offline`; `create_app` serving `settings.frontend_dist` with an SPA fallback for non-`/api` paths.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7818,7 +8819,7 @@ def test_synthetic_games_are_deterministic_and_complete() -> None:
     assert [g.winner for g in first] == [g.winner for g in again]
     for game in first:
         assert len(game.participants) == 10
-        assert game.objectives and game.kills and game.wards and game.plates
+        assert game.objectives and game.kills and game.spawns and game.plates
         assert game.meta.started_at < first[-1].meta.started_at or game is first[-1]
 ```
 
@@ -7856,7 +8857,7 @@ Expected: FAIL
 `backend/throughline/synthetic.py`:
 
 ```python
-"""A seeded synthetic league for judges without a GRID key, end-to-end tests and offline development.
+"""A seeded synthetic league for anyone without the GRID starter data, end-to-end tests and offline work.
 
 Each champion has a hidden early and late strength; gold leads, objectives and results follow them with noise,
 so the knowledge base finds real (synthetic) patterns.
@@ -7872,7 +8873,7 @@ from throughline.game.builder import GameBuilder
 from throughline.game.geometry import FOUNTAIN, PITS
 from throughline.game.model import ROLES, SIDES, Game, Side, other
 
-OFFLINE_LEGENDARY = {3031, 3089, 3071, 3157}
+OFFLINE_LEGENDARY = {"Infinity Edge", "Rabadon's Deathcap", "Black Cleaver", "Zhonya's Hourglass"}
 POOLS: dict[str, list[str]] = {
     "top": ["Aatrox", "Gnar", "Jax", "Renekton", "Rumble", "KSante", "Ornn", "Jayce"],
     "jungle": ["Vi", "Sejuani", "LeeSin", "Maokai", "Xinzhao", "Viego", "Wukong", "Nidalee"],
@@ -7907,7 +8908,10 @@ def synthetic_games(n: int, seed: int = 7) -> Iterator[Game]:
         pids = range(1, 6) if dragon_side == "blue" else range(6, 11)
         for pid in list(pids)[1:4]:
             b.walk(pid, 230.0, 285.0, FOUNTAIN[dragon_side], PITS["dragon"])
-        b.ward(240.0, list(pids)[4], PITS["dragon"][0] - 400.0, PITS["dragon"][1] + 300.0)
+        b.spawn(294.0, "dragon", *PITS["dragon"])
+        b.spawn(473.0, "grubs", *PITS["baron"])
+        b.spawn(897.0, "herald", *PITS["baron"])
+        b.spawn(1480.0, "baron", *PITS["baron"])
         b.objective(300.0 + rng.uniform(15, 60), "dragon", dragon_side)
         b.objective(480.0 + rng.uniform(20, 90), "grubs", early_side if rng.random() < 0.6 else other(early_side))
         b.objective(900.0 + rng.uniform(20, 90), "herald", rng.choice(SIDES))
@@ -7944,7 +8948,7 @@ from throughline.synthetic import OFFLINE_LEGENDARY, synthetic_games
 
 @app.command()
 def seed(games: int = 300) -> None:
-    """Fill the analytics database with a synthetic league (no GRID key needed)."""
+    """Fill the analytics database with a synthetic league (no GRID data needed)."""
     settings = Settings.from_env()
     store = AnalyticsStore(settings.analytics_db)
     store.init_schema()
@@ -7963,7 +8967,10 @@ def build(offline: bool = False) -> None:
     settings = Settings.from_env()
     store = AnalyticsStore(settings.analytics_db)
     store.init_schema()
-    legendary = OFFLINE_LEGENDARY if offline else legendary_item_ids(fetch_item_json(settings.data_dir / "ddragon"))
+    if offline:
+        legendary = OFFLINE_LEGENDARY
+    else:
+        legendary = legendary_item_names(fetch_item_jsons(_patches(store), settings.data_dir / "ddragon"))
     ids = store.game_ids_by_time()
     for n, game_id in enumerate(ids, start=1):
         store.write_features(game_id, participant_features(store.load_game(game_id), legendary))
@@ -8005,7 +9012,7 @@ Then serve it and click through plan and review. Add `data-synthetic/` to `.giti
 `Dockerfile`:
 
 ```dockerfile
-FROM node:20.18.1-alpine AS web
+FROM node:24.22.3-alpine AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -8013,6 +9020,7 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.12.8-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 WORKDIR /app/backend
 COPY backend/pyproject.toml backend/uv.lock ./
@@ -8021,7 +9029,7 @@ COPY backend/ ./
 RUN uv sync --frozen --no-dev
 COPY --from=web /web/dist /app/frontend/dist
 COPY scripts/start.sh /app/start.sh
-ENV TL_DATA_DIR=/data TL_FRONTEND_DIST=/app/frontend/dist PATH="/app/backend/.venv/bin:$PATH"
+ENV TL_DATA_DIR=/data STL_DATA_DIR=/data/stl TL_FRONTEND_DIST=/app/frontend/dist PATH="/app/backend/.venv/bin:$PATH"
 EXPOSE 8000
 CMD ["/app/start.sh"]
 ```
@@ -8032,10 +9040,14 @@ CMD ["/app/start.sh"]
 #!/usr/bin/env bash
 set -euo pipefail
 DB="${TL_ANALYTICS_DB:-$TL_DATA_DIR/throughline.duckdb}"
+# The real data only with the organizers' written permission to host it: TL_REAL_DATA=1.
+if [ "${TL_REAL_DATA:-0}" = "1" ] && [ ! -f "$STL_DATA_DIR/lol/series.csv" ]; then
+  git clone --filter=blob:none --sparse https://github.com/cloud9esports/stl-hackathon-2026-grid-starter.git "$STL_DATA_DIR"
+  git -C "$STL_DATA_DIR" sparse-checkout set lol meta
+fi
 if [ ! -f "$DB" ]; then
-  if [ -n "${TL_GRID_API_KEY:-}" ] && [ -n "${TL_TOURNAMENTS:-}" ]; then
-    IFS=',' read -ra TOURNAMENTS <<< "$TL_TOURNAMENTS"
-    for t in "${TOURNAMENTS[@]}"; do throughline ingest "$t" --since "${TL_SINCE:-2026-01-01}"; done
+  if [ "${TL_REAL_DATA:-0}" = "1" ]; then
+    throughline ingest
     throughline build
   else
     throughline seed --games 400
@@ -8053,9 +9065,10 @@ Expected: seeds on first start, then serves the app at http://localhost:8000 wit
 
 - [ ] **Step 8: Deploy**
 
-Create a Railway project from the repository (Dockerfile build) with a volume mounted at `/data` and variables `TL_GRID_API_KEY`, `TL_TOURNAMENTS` (comma-separated tournament name fragments), `TL_SINCE`, `TL_HOLDOUT_FROM`.
-The first boot ingests and builds (minutes); check the deploy logs until uvicorn starts, then open the public URL and run through the core flow.
-If the GRID data terms forbid a public demo, deploy without the key: the synthetic league, with a banner saying so (and record the real-data demo in the video).
+Create a Railway project from the repository (Dockerfile build) with a volume mounted at `/data` and the variable `TL_HOLDOUT_FROM` (`2025-08-20` for the real data).
+Without `TL_REAL_DATA`, it serves the synthetic league; add a banner that says so, and record the real-data demo for the video from a local run.
+Set `TL_REAL_DATA=1` only after the organizers confirm in writing that the starter data may be hosted for judging (the license allows it only on the participant's machine); the first boot then clones `lol/` and `meta/`, ingests and builds (minutes).
+Check the deploy logs until uvicorn starts, then open the public URL and run through the core flow.
 
 - [ ] **Step 9: Commit**
 
@@ -8177,17 +9190,17 @@ git commit -m "test(e2e): the plan-and-review loop; polish pass"
 Sections, in this order, one sentence per line:
 1. One-line pitch and a hero screenshot of the Review page.
 2. What it does: Plan (draft in, checkable items out, with evidence and games counts) and Review (each item checked, macro moments, clips, coach notes), three screenshots.
-3. Try it: the live URL; then local run with the synthetic league (`uv sync`, `throughline seed`, `throughline build --offline`, `uvicorn`, `npm run dev`), then with a GRID key (`TL_GRID_API_KEY`, `throughline ingest`, `throughline build`, `throughline validate`).
+3. Try it: the live URL; then local run with the synthetic league (`uv sync`, `throughline seed`, `throughline build --offline`, `uvicorn`, `npm run dev`), then with the GRID starter data (the sparse clone next to the repository from Phase 1, `throughline ingest`, `throughline build`, `throughline validate`).
 4. How it works: the pipeline diagram from the spec, and a link to `docs/methodology.md`.
-5. Built with JetBrains: PyCharm, WebStorm, DataGrip, Junie (link to `AI_SHOWCASE.md`, `.junie/guidelines.md`, `docs/BUILD_LOG.md`).
-6. Data: GRID esports data (optional), Riot Data Dragon assets; no GRID data in this repository.
+5. Built with JetBrains: PyCharm, WebStorm, DataGrip, Junie (link to `AI_SHOWCASE.md`, `.junie/AGENTS.md`, `docs/BUILD_LOG.md`).
+6. Data: the hackathon's GRID starter data (not in this repository; its license limits it to the hackathon), Riot Data Dragon assets.
 7. License (AGPL-3.0) and the Riot notice, verbatim.
 
 - [ ] **Step 2: Methodology**
 
 `docs/methodology.md`, sections:
 1. The problem and the approach (from the spec).
-2. Data: what GRID events are used, the census (`docs/data/events.md`), the dataset (leagues, splits, game count).
+2. Data: what GRID events are used, the census (`docs/data/events.md`), the dataset (leagues, splits, game count), and what the feed cannot give: positions only every few seconds (and how `GameIndex` handles gaps), no wards, no roles (and how they are inferred, with the hand check), and the clock offset from Task 3.
 3. Knowledge base: tempo curves, shrinkage (`value * n / (n + 20)`), matchups (5+ games), spikes (10+ games), objective tendencies, patch windows and the fallback.
 4. The plan: each item type, how it is built, its guard, and every constant from `plan/constants.py` with its value.
 5. The review: each checker's rule and each moment detector's rule, with their constants.
@@ -8198,7 +9211,7 @@ Sections, in this order, one sentence per line:
 - [ ] **Step 3: AI_SHOWCASE.md**
 
 Written from `docs/BUILD_LOG.md`:
-1. Setup: which JetBrains tools, the `.junie/guidelines.md` rules and why each exists.
+1. Setup: which JetBrains tools, the `.junie/AGENTS.md` rules and why each exists.
 2. Three or four concrete stories with screenshots, each: the task, the prompt, what Junie produced, what was wrong and how it was caught (usually a failing test or a VOD check), the fix.
 3. What worked and what did not, honestly.
 4. Numbers: commits and tasks done mostly by Junie, tests written test-first, time from spec to deploy.

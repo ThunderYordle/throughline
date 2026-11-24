@@ -49,6 +49,7 @@ From the Official Rules, as they bear on this design:
 - **Ownership**: original work, solely owned by the entrant.
 - **No support from a Promotion Entity**: the project must not be developed, or derived from a project developed, with financial or preferential support from Cloud9, Devpost, JetBrains or GRID.
 - **Riot titles**: a project that uses or draws on Riot Games titles must comply with Riot's developer policies.
+- **GRID data license** (the starter repository's `LICENSE.md`): the data may be used only to build, demo and have judged this project, during the hackathon; it must never be committed or redistributed, nor anything built from it that contains it; it may be shown to judges; AI tools that process it must have training and retention opt-outs enabled.
 - **Judging**: a pass/fail stage (fits the theme, really uses JetBrains tools), then five equally weighted criteria: Technological Implementation, Design, Potential Impact, Quality of the Idea, Presentation. Ties break in that order, so JetBrains tool use is the first tie-breaker.
 
 
@@ -68,7 +69,7 @@ For the hackathon, both halves run on pro games: pick any game in the dataset, s
 
 ### The knowledge base
 
-Built offline from every game in the dataset, per patch window (the game's patch and the two before it, falling back to the whole dataset when samples are thin):
+Built offline from every game in the dataset, per patch window (the game's patch and the two before it, widened to the season so far and then to the whole dataset when samples are thin):
 
 - **Champion tempo curves**: per champion and role, the team's gold difference at 5, 10, 15, 20, 25 and 30 minutes against the league average for the role, shrunk toward zero by sample size (empirical Bayes, so a champion with 4 games barely moves the curve).
 - **Lane matchups**: gold and CS difference at 10 and 14 minutes for a champion pair in a lane, when there are 5+ games; otherwise each champion's own lane curve.
@@ -91,7 +92,7 @@ Typed items are what lets the review check them.
 
 | Type | Example | Built from | Checked by |
 |---|---|---|---|
-| `objective` | "Contest first dragon (5:00): 3+ in bot river by 4:40, 2+ wards there by 4:30." | Lane priority near the pit, draft tempo at spawn, objective tendencies | Positions and wards before spawn, who took it |
+| `objective` | "Contest first dragon (5:00): 3+ near the pit by 4:40, grouped there before them." | Lane priority near the pit, draft tempo at spawn, objective tendencies, the season's spawn time | Positions before spawn, who grouped first, who took it |
 | `concede` | "Give first grubs; trade for plates mid or bot." | Their lane priority near the pit, their window | Our players' distance from the pit at spawn, what we took meanwhile |
 | `lane` | "Bot has priority to 8:00: play for plates." | Lane matchup | Plates, wave position and gold difference in that lane to the time |
 | `window` | "Our window 16:00-22:00: force fights and objectives." / "Their window 12:00-18:00: avoid even fights." | Draft tempo | Fights started in the range, their numbers and results |
@@ -117,7 +118,7 @@ Rules for the generator:
 
 For each plan item, a verdict: **Followed**, **Partly**, **Not followed** or **Not applicable** (for example, a dragon item when the game ended before it or the dragon was already taken).
 
-- Each verdict states the numbers it read ("2 of 5 in bot river at 4:40, 1 ward; dragon taken by them at 5:21").
+- Each verdict states the numbers it read ("2 of 5 near the pit at 4:40, grouped at 4:10, after them (3:50); they took it at 5:21").
 - Each verdict opens the replay at the moment that decided it.
 - The header sums it up: "Plan followed 4 of 6 (2 partly)".
 
@@ -127,7 +128,7 @@ Moments the plan did not cover, detected from the game alone:
 
 | Moment | Detected when | Verdict reads |
 |---|---|---|
-| Objective setup | Every objective spawn: arrival time of each player within the pit area, wards placed there in the 90 seconds before | Arrived first, grouped late, no vision, outnumbered |
+| Objective setup | Every objective spawn: when each team first had 3 players within the pit area in the 90 seconds before, and how many were there at spawn | Arrived first, grouped late, outnumbered |
 | Unused advantage | 2+ enemy deaths or 3+ enemy recalls, then 60 seconds with no objective, structure, plate or vision gain | Wasted tempo, or converted (with what) |
 | Cross-map trade | Objectives or structures taken by both teams within 45 seconds on opposite halves | Gold value of each side, who came out ahead |
 | Caught before an objective | A death with no ally within 2,000 units in the 90 seconds before an objective spawn, after 14:00 | The objective's outcome after it |
@@ -148,12 +149,13 @@ Thresholds are named constants in the detector modules and documented in `docs/m
 
 A minimap player for one game:
 
-- Champion icons with health rings, wards with their lifetimes, structures, objectives with spawn timers, kills where they happened.
+- Champion icons with health rings, structures, objectives on the map from spawn to take, kills where they happened.
+- Positions arrive every few seconds; the player interpolates between them and fades an icon while the feed has no recent position for it.
 - A scrubber with markers for kills, objectives and the review's moments; speeds 1x to 20x; loops a clip.
 - A short trail behind each champion (last 10 seconds), so rotations read at a glance.
 - Opened by URL with a game id, a start and an end, so every link in the app is just a URL.
 
-No minion waves: the feed has no minion positions.
+No minion waves and no wards: the feed has neither.
 Lane state for `lane` items is read from plates, structures and the laners' positions.
 
 ## Validation: does following the plan matter?
@@ -172,37 +174,41 @@ The headline number goes in the video if it holds up.
 
 ## Data
 
-### GRID access
+### GRID data
 
-The hackathon gives participants access to official LoL esports data from GRID through an application form.
-Throughline uses:
+The hackathon publishes official GRID data as a GitHub repository, `cloud9esports/stl-hackathon-2026-grid-starter`: one zstd-compressed JSON Lines file per series, plus CSV lookup tables in `meta/`.
+Throughline reads a sparse clone of `lol/` and `meta/` (355 MB) next to its own repository, in place, and never copies it in.
+There is no API key and no download step.
 
-- **Central Data** (GraphQL): tournaments, series, teams, players.
-- **Series State**: sides, roles, champions, results per game.
-- **File Download**: the `events` JSONL per game.
+Each line of a feed is an envelope of events; each event carries a snapshot of the series after it (`seriesState`).
+Verified on 2026-11-19 against every League of Legends game in the data:
 
-Events the design needs, each to verify against the hackathon data in week 1:
-
-| Need | Event | Fallback if missing |
+| Need | In the feed | Consequence |
 |---|---|---|
-| Positions | per-player positions in the stats updates | None: the review cannot work without it |
-| Wards | `ward_placed`, `ward_killed` | Drop ward checks from `objective` items |
-| Kills, objectives, structures, plates | kill, epic monster, building, turret plate events | Plates: drop them from `lane` checks |
-| Levels | level-up events or level in stats updates | Drop level-6 `spike` items |
-| Items | item purchase events or inventory in stats updates | Drop item `spike` items |
-| Gold | total gold per player in stats updates | None: tempo curves need it |
+| Positions | All ten players' `position` in every event's snapshot: median 2 s apart, 90th percentile about 8 s, worst gaps 60 to 110 s | Positions are interpolated across gaps up to 20 s; longer gaps are unknown, never guessed (3.4% of positions sampled every 30 s) |
+| Wards | None; `visionScore` changes only in the few full snapshots of a game | No ward or vision checks anywhere; objective items check who grouped first instead |
+| Roles | `roles` is always empty | Inferred per team: World Atlas marks the support (every support in 117 sampled games), scuttles and off-lane time the jungler, lane time the laners |
+| Champions, teams, sides | Champions only in full snapshots; teams and sides in every snapshot | Read from the full snapshots |
+| Kills | `player-killed-player`, assists in the killer's state delta, the victim's position from the snapshot | As planned |
+| Objectives | Kills of epic monsters by type, with the monster's position; their spawns as events | Spawn times come from the feed, not a table: they changed between and within seasons (first baron 24:40 in 2025, 19:40 in 2026) |
+| Structures, plates | Tower, inhibitor and nexus destructions by id (`red-turret-mid-1`); plate events by lane and turret tier | As planned |
+| Levels | `player-completed-increaseLevel` events (2026 games reach level 20) | Level-6 spikes as planned |
+| Items | Purchases (with undo events) by item id; names in inventories | Matched to Data Dragon by name: 1 unmatched purchase in 484,849 |
+| Gold | `totalMoneyEarned` per player in every snapshot | Tempo curves as planned |
+| Clock | Integer seconds of game time, a few seconds behind the broadcast timer at known spawns (dragon at 4:54) | Measured against VODs in week 1; every time in the app is the feed's |
+| Results | Winner, patch and game start per game; rolled-back games undone by `series-!started-game` | Parsed games match `meta/games.csv` on winner and patch in every sampled game |
 
 ### Pipeline
 
 ```
-ingest CLI
-  ├─ list series for the chosen tournaments (Central Data)
-  ├─ per game: download events JSONL (cached on disk, gzipped)
-  └─ parse once into compact tables
-        games, players, positions (1 Hz), gold (per 10 s), levels, items,
-        wards, kills, objectives, structures, plates
+ingest CLI (about 2 minutes for the whole dataset)
+  ├─ lol/series.csv: every series, oldest first
+  ├─ per series: stream the .jsonl.zst, split it into games
+  └─ per game: infer roles, then compact tables
+        games, participants, frames (every observation), kills, spawns,
+        objectives, structures, plates, items
 build CLI
-  ├─ knowledge base per patch window (curves, matchups, spikes, objective tendencies)
+  ├─ knowledge base per patch window (curves, matchups, spikes, objective tendencies, spawn times)
   ├─ per game: fights, objective setups, moments
   └─ validation: plans from prior games, checks, adherence tables
 API
@@ -216,18 +222,21 @@ API
 - **SQLite** for the app's own records: plans, reviews, confirmations and notes.
 
 The split keeps user data out of a file that is rebuilt, and both run from a fresh clone with no server.
-GRID data is not committed to the public repository; the README explains how to ingest with one's own GRID key, and the hosted demo runs on data ingested on the server.
+Neither the GRID data nor anything built from it is committed: the DuckDB file is derived data under the license.
+The README explains how to clone the starter data and ingest it; without it, a seeded synthetic league runs the whole app.
+The hosted demo runs the synthetic league unless the organizers confirm in writing that the starter data may be hosted for judging (see Open questions).
 
 ### Dataset
 
-The leagues and splits the hackathon key covers, most recent first.
-Target: 600+ games, enough for champion curves on the current patches and for the validation's held-out split.
+All 1,739 League of Legends games in the starter data: LCK, LEC, LTA North and South, and LCS, January 2025 to October 2026, patches 15.1 to 16.x.
+1,738 parse; one game has six players with a champion on one side and is skipped.
+The validation holds out games from 2025-08-20 on (about 40%).
 
 ## Architecture
 
 - **Backend**: Python 3.12, FastAPI, DuckDB, SQLite, Pydantic models for every payload. Analysis is pure functions over per-game data; I/O lives only in the CLIs and the API layer.
-  - `backend/throughline/grid/`: GRID clients and the events parser.
-  - `backend/throughline/game/`: per-game features (positions, fights, objective setups, lane state).
+  - `backend/throughline/grid/`: the starter-data reader, the GRID schema, the census and the series parser.
+  - `backend/throughline/game/`: the game model, role inference and per-game features (positions, fights, objective setups, lane state).
   - `backend/throughline/knowledge/`: curves, matchups, spikes, shrinkage.
   - `backend/throughline/plan/`: item types, the generator, `constants.py`.
   - `backend/throughline/review/`: one checker per item type, one detector per moment type.
@@ -241,7 +250,7 @@ Target: 600+ games, enough for champion curves on the current patches and for th
   - `POST /reviews` (a plan and a game), `GET /reviews/{id}`, `PATCH /reviews/{id}/entries/{entryId}`
   - `GET /games/{id}/replay`
   - `GET /validation`
-- **Hosting**: one container (the API serving the built frontend) with both database files, on Railway or Fly, at a public URL with no login.
+- **Hosting**: one container (the API serving the built frontend) with both database files, on Railway or Fly, at a public URL with no login; synthetic league by default, the real data only with the organizers' written permission.
 
 ## Scope and the cut line
 
@@ -276,7 +285,7 @@ JetBrains tool use is a pass/fail gate, one fifth of the score, the first tie-br
 The tools have to be how the project is built, and the evidence has to show it.
 
 - **IDEs**: PyCharm for the backend, WebStorm for the frontend, DataGrip for the DuckDB and SQLite files (the hackathon's All Products Pack code covers all three). Run configurations for ingest, build, API, frontend and tests are committed in `.idea/runConfigurations`.
-- **Junie as the main coding agent** for this project, with project guidelines in `.junie/guidelines.md` (stack, layout, coordinate frames, the plan item types, testing rules). Use it for whole features with a test-first loop. Commit the `.junie` folder.
+- **Junie as the main coding agent** for this project, with project guidelines in `.junie/AGENTS.md` (stack, layout, coordinate frames, the plan item types, testing rules). Use it for whole features with a test-first loop. Commit the `.junie` folder.
 - **JetBrains Air** if it fits (tried in week 0); not required.
 - **Evidence**: commit `.idea` (without workspace files and secrets) and `.junie`. Keep `docs/BUILD_LOG.md` from day one: what was asked of which tool, what came back, what had to be fixed and why, with screenshots of the notable moments.
 - **AI_SHOWCASE.md** for the bonus prize, written from the build log in week 7: three or four concrete stories (for example, Junie writing the objective-setup checker test-first against hand-checked VOD moments), what worked, what did not, and honest numbers.
@@ -296,8 +305,8 @@ Public on YouTube, aim for 2:50; no team logos, no copyrighted music, no broadca
 
 | Week | Dates | Done when |
 |---|---|---|
-| 0 | Nov 19 - 23 | Registered, GRID access requested (data terms read), repo created with license, `.junie/guidelines.md` and BUILD_LOG, Junie and Air tried |
-| 1 | Nov 24 - 30 | Ingest CLI downloads and parses one split; every event in the Data table verified; parser tests pass |
+| 0 | Nov 19 - 23 | Registered, starter data cloned and checked against this spec (done Nov 19), hosting question sent to the organizers, repo created with license, `.junie/AGENTS.md` and BUILD_LOG, Junie and Air tried |
+| 1 | Nov 24 - 30 | Ingest CLI parses the whole starter dataset; census committed; clock checked against VODs; parser tests pass |
 | 2 | Dec 1 - 7 | Replay with clips by URL; per-game features (objective setups, fights, lane state) checked by hand on 5 games |
 | 3 | Dec 8 - 14 | Knowledge base: tempo curves, matchups, level-6 spikes; draft entry and the Plan page with the must-ship item types |
 | 4 | Dec 15 - 21 | Review: checkers and the three must-ship detectors; the Review page. Checkpoint: must-ship done, else cut |
@@ -308,7 +317,7 @@ Public on YouTube, aim for 2:50; no team logos, no copyrighted music, no broadca
 
 ## Testing
 
-- Parser: fixture event files for 3 games (a blue win, a red win, a short game), asserting counts of kills, wards, objectives, structures and plates against the end state.
+- Parser: small GRID feeds written by a test helper (no real data in the repository), asserting roles, frames, kills, spawns, objectives, structures, plates, items, rolled-back and unfinished games; a real-data test (skipped without the starter data) checks winners and patches against `meta/games.csv`.
 - Knowledge base: shrinkage and curve sums on synthetic data with known answers.
 - Plan: the generator on fixed knowledge-base fixtures; each item type's guard, ranking and text.
 - Review: each checker and detector on small synthetic games (five players walking to a pit at known times, a gold swing of known size) plus snapshot tests on the fixture games.
@@ -319,7 +328,7 @@ Public on YouTube, aim for 2:50; no team logos, no copyrighted music, no broadca
 
 ## Submission checklist
 
-- Public GitHub repository: all source and assets, a `LICENSE` that shows in the About section, `.idea` and `.junie` committed, a README (what it does, screenshots, how to run, how to ingest with a GRID key, Riot's notice).
+- Public GitHub repository: all source and assets, a `LICENSE` that shows in the About section, `.idea` and `.junie` committed, a README (what it does, screenshots, how to run, how to ingest the starter data, Riot's notice), and no GRID data anywhere in its history.
 - Working demo at a public URL, no login, up until at least February 8, 2027.
 - Demo video under 3 minutes, public on YouTube.
 - Text description: features, and the JetBrains tools used and how.
@@ -335,14 +344,15 @@ Public on YouTube, aim for 2:50; no team logos, no copyrighted music, no broadca
 | Plan items read as generic ("contest dragon") | Every item names a time, a count and its evidence; items without enough games are never generated |
 | Champion samples too thin on new patches | Patch windows with fallback; shrinkage; the games count on every line |
 | Validation shows plans do not predict wins | Report it honestly; it is a finding, and the review's value (what happened, with clips) does not depend on it |
-| GRID hackathon key is slow or lacks some events | Apply in week 0; the Data table's fallbacks |
-| Hackathon data terms forbid a public hosted demo | Read them first; fall back to a local build and a video recorded from it |
+| The feed lacks wards and roles, and samples positions every few seconds | Verified in week 0: no ward checks, inferred roles with a hand check, interpolation with honest unknowns (see Data) |
+| The data license does not allow hosting the real data | Asked in week 0; until confirmed, the hosted demo runs the synthetic league and the video shows the real data from a local run |
+| GRID data committed by accident | Ignored by `.gitignore`, a CI job that fails on tracked data files, a staged-files check in every commit step, and a rule in Junie's guidelines |
 | JetBrains use judged as token | Junie as the main agent, committed `.junie` and `.idea`, a build log from day one |
 
 ## Open questions
 
-- **GRID scope**: which leagues and splits, and which events of the Data table the hackathon data carries.
-- **GRID data terms**: whether hackathon data can be shown on a public URL and kept afterwards.
+- **Hosting the real data**: the license allows the data only on the participant's machine ("small excerpts" for judges aside); ask the organizers in writing whether the hosted demo may run on it during judging.
+- **Clock**: how far the feed's clock trails the broadcast timer, and whether the offset is steady enough to correct (week 1, against VODs).
 - **Name**: Throughline is a placeholder; check it is free on GitHub and Devpost.
 - **Demo game**: which recent pro game tells the clearest story (pick in week 6).
 - **Solo or team**: the rules allow teams; a second person on the frontend would free time for the analysis.

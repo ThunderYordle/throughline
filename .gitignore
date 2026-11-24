@@ -1,0 +1,22 @@
+data/
+*.duckdb
+*.duckdb.wal
+*.sqlite
+.env
+__pycache__/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+frontend/dist/
+# Sky's The Limit 2026 hackathon data: licensed, must not be committed
+stl-hackathon-2026-grid-starter/
+*.zst
+*.jsonl
+*.parquet
+frontend/test-results/
+frontend/playwright-report/
+.idea/workspace.xml
+.idea/shelf/
+.idea/usage.statistics.xml
