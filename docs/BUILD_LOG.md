@@ -77,3 +77,18 @@ One entry per task: the date, the task, which JetBrains tool did what, what had 
 - Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 11 and 19.
 - What worked: Implemented Draft/Plan pages, coach editing behind tokens, Discord export, and SVG `TempoChart` test-first; ESLint, TypeScript, 11 Vitest tests, and Vite build all passed.
 - What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 12: KnowledgeBase
+- Tool: Junie (fast-tier coding subagent) in PyCharm.
+- What worked: Implemented `knowledge/base.py` with empirical Bayes shrinkage, patch-window/season fallback, time-split filtering, and season-scoped `first_spawn` test-first; all 7 tests, ruff, and mypy passed.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 20: macro moment detectors
+- Tool: Junie (fast-tier coding subagent) in PyCharm, run in parallel with Tasks 12 and 22.
+- What worked: Implemented all 5 macro moment detectors (`objective_setups`, `unused_advantages`, `cross_map_trades`, `caught_before_objectives`, `gold_swings`) and impact capping in `review/moments.py` test-first; all 7 tests, ruff, and mypy passed.
+- What had to be fixed: Nothing.
+
+## 2026-11-24 - Task 22: Review page
+- Tool: Junie (fast-tier coding subagent) in WebStorm, run in parallel with Tasks 12 and 20.
+- What worked: Implemented `ReviewPage.tsx`, `ReviewTimeline`, `ReviewList`, game picker on `PlanPage`, confirm/dismiss/notes, read-only share link, and `reviewEntries.test.ts` test-first; ESLint, TypeScript, 13 Vitest tests, and Vite build all passed.
+- What had to be fixed: Nothing.

@@ -4794,7 +4794,7 @@ git commit -m "feat(knowledge): participant features and the build command"
 Seasons change the map, so the season comes before every game: on the real data a 16.14 draft fell back to every game and was told baron spawns at 24:40, the 2025 time, instead of 19:40.
 `first_spawn` always reads the season, because spawn times need few games and must not mix seasons.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/knowledge/test_base.py`:
 
@@ -4929,12 +4929,12 @@ def test_first_spawn_reads_the_season_even_when_statistics_widen(store: Analytic
     assert kb.first_spawn("baron") == 1180.0  # ...spawn times stay in the season
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/knowledge/test_base.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/knowledge/base.py`:
 
@@ -5114,12 +5114,12 @@ class KnowledgeBase:
         return float(at) if at is not None and int(n) >= MIN_SPAWN_GAMES else None
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/knowledge -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
@@ -7379,7 +7379,7 @@ git commit -m "feat(review): review context and one checker per plan item type"
 - Consumes: `ReviewContext`, `setup_for`, `kill_side`, `objective_center`, `half_of`, `plural`.
 - Produces: `MomentKind`, `Moment(id, kind, t, verdict, text, impact, clip)` (pydantic), `objective_setups(ctx)`, `unused_advantages(ctx)`, `cross_map_trades(ctx)`, `caught_before_objectives(ctx)`, `gold_swings(ctx)` (each `-> list[Moment]`), `detect_moments(ctx) -> list[Moment]` (at most `MAX_MOMENTS`, by impact, then in time order).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/review/test_moments.py`:
 
@@ -7474,12 +7474,12 @@ def test_detect_moments_caps_and_orders() -> None:
     assert [m.t for m in moments] == sorted(m.t for m in moments)
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/review/test_moments.py -v`
 Expected: FAIL with `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `backend/throughline/review/moments.py`:
 
@@ -7751,7 +7751,7 @@ def detect_moments(ctx: ReviewContext) -> list[Moment]:
     return sorted(top, key=lambda m: m.t)
 ```
 
-- [ ] **Step 4: Run the tests, lint and types**
+- [x] **Step 4: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/review -v && uv run mypy throughline && uv run ruff check .`
 Expected: all pass, clean.
@@ -7762,7 +7762,7 @@ If a text assertion is off by a second because of the sampling step, fix the con
 For 5 real games, print `detect_moments` for both sides and check each moment against the VOD at its time.
 Log in BUILD_LOG: how many moments were right, wrong or debatable per kind, and every threshold you changed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend
@@ -8109,7 +8109,7 @@ git commit -m "feat(review): review assembly, storage and API"
   - `ReviewEntry { id; kind: "check" | "moment"; t; label; text; numbers?; tone: "good" | "bad" | "neutral" | "na"; clip: [number, number]; status? }`, `reviewEntries(review, plan?): ReviewEntry[]` (checks and moments in time order, with plan item text for checks), `summaryLine(review): string` (`"Plan followed 4 of 6 (2 partly)"`).
   - Route `/review/:id`; a "Review a game" section on the Plan page.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `frontend/src/lib/reviewEntries.test.ts`:
 
@@ -8146,12 +8146,12 @@ describe("reviewEntries", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd frontend && npm test`
 Expected: FAIL (module not found)
 
-- [ ] **Step 3: Types, API and the entries helper**
+- [x] **Step 3: Types, API and the entries helper**
 
 Append to `frontend/src/types.ts`:
 
@@ -8266,12 +8266,12 @@ export function summaryLine(review: ReviewBody): string {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `cd frontend && npm test`
 Expected: all pass.
 
-- [ ] **Step 5: Components and page**
+- [x] **Step 5: Components and page**
 
 `frontend/src/components/GameTimeline.tsx`:
 
@@ -8502,13 +8502,13 @@ export function ReviewAGame({ planId, suggestedGameId }: { planId: string; sugge
 
 In `PlanPage.tsx`, read `?game=` with `useSearchParams` and render `<ReviewAGame planId={id} suggestedGameId={game ?? undefined} />` after the items. In `App.tsx`, add `<Route path="/review/:id" element={<ReviewPage />} />`.
 
-- [ ] **Step 6: Check it in the browser**
+- [x] **Step 6: Check it in the browser**
 
 Plan from a real game, then Review it.
 Expected: the header reads "Plan followed N of M"; the timeline shows dots matching the list; picking an entry plays its clip on loop; confirm, dismiss and a note survive a reload; the player link in a private window shows the notes but no controls; at 1280 px the replay sits beside the list, at 375 px below it, with nothing overflowing.
 Screenshot both widths for BUILD_LOG and the README.
 
-- [ ] **Step 7: Lint, types, tests, build; commit**
+- [x] **Step 7: Lint, types, tests, build; commit**
 
 Run: `cd frontend && npm run lint && npm run typecheck && npm test && npm run build`
 
