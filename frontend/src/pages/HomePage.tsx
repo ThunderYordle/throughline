@@ -90,7 +90,7 @@ export function HomePage() {
       <PageHeader
         eyebrow={
           <>
-            <Badge tone="cyan" dot>Scouting Warroom</Badge>
+            <Badge tone="cyan" dot>Scouting Desk</Badge>
             <Badge tone="neutral" mono>Pro Macro Intelligence</Badge>
           </>
         }
@@ -103,9 +103,6 @@ export function HomePage() {
             </ButtonLink>
             <ButtonLink to="/validation" variant="secondary" size="md">
               Validation report
-            </ButtonLink>
-            <ButtonLink to="/design-system" variant="ghost" size="md">
-              Design system
             </ButtonLink>
           </>
         }

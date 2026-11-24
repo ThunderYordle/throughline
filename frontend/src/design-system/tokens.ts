@@ -75,7 +75,7 @@ export const COLOR_GROUPS: TokenGroup[] = [
   },
   {
     title: "Team & Command Accents",
-    description: "Reserved strictly for Blue/Red team attribution and interactive Warroom focus states.",
+    description: "Reserved strictly for Blue/Red team attribution and interactive focus states.",
     tokens: [
       { name: "Command Cyan", cssVar: "--tl-accent-cyan", value: TOKENS.accent.cyan, usage: "Active workflow step, focus rings" },
       { name: "Blue Side", cssVar: "--tl-side-blue", value: TOKENS.side.blue, usage: "Blue roster, structures, blue lead" },

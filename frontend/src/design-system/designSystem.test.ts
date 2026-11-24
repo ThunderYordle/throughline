@@ -50,10 +50,6 @@ describe("navigation context resolver", () => {
       activeNav: "validation",
       stage: null,
     });
-    expect(resolveNavContext("/design-system")).toMatchObject({
-      activeNav: "design-system",
-      stage: null,
-    });
   });
 });
 

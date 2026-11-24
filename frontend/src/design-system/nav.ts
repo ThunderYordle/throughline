@@ -1,4 +1,4 @@
-export type PrimaryNavId = "matches" | "draft" | "validation" | "design-system";
+export type PrimaryNavId = "matches" | "draft" | "validation";
 export type WorkflowStageId = "draft" | "plan" | "review" | "replay";
 
 export interface BreadcrumbItem {
@@ -17,7 +17,6 @@ export const PRIMARY_NAV_ITEMS: { id: PrimaryNavId; label: string; to: string }[
   { id: "matches", label: "Matches", to: "/" },
   { id: "draft", label: "Draft Builder", to: "/plan/new" },
   { id: "validation", label: "Validation", to: "/validation" },
-  { id: "design-system", label: "Design System", to: "/design-system" },
 ];
 
 export const WORKFLOW_STAGES: { id: WorkflowStageId; step: string; label: string }[] = [
@@ -74,14 +73,6 @@ export function resolveNavContext(pathname: string): NavContext {
       stage: null,
       crumbs: [{ label: "Matches", to: "/" }, { label: "Validation Backtest" }],
       subtitle: "Strict time-split empirical evaluation",
-    };
-  }
-  if (pathname === "/design-system") {
-    return {
-      activeNav: "design-system",
-      stage: null,
-      crumbs: [{ label: "Matches", to: "/" }, { label: "Design System" }],
-      subtitle: "Tactical Warroom tokens & UI primitives",
     };
   }
   return {

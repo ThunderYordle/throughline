@@ -119,7 +119,7 @@ export function ReviewPage() {
         onSelect={setSelected}
       />
 
-      {/* Split Warroom Workspace: Entries + Sticky Tactical Map */}
+      {/* Split Workspace: Entries + Sticky Tactical Map */}
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)]">
         <ReviewList
           entries={entries}

@@ -1,6 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./design-system";
-import { DesignSystemPage } from "./pages/DesignSystemPage";
 import { DraftPage } from "./pages/DraftPage";
 import { HomePage } from "./pages/HomePage";
 import { PlanFromGamePage } from "./pages/PlanFromGamePage";
@@ -21,7 +20,6 @@ export default function App() {
           <Route path="/plan/:id" element={<PlanPage />} />
           <Route path="/review/:id" element={<ReviewPage />} />
           <Route path="/validation" element={<ValidationPage />} />
-          <Route path="/design-system" element={<DesignSystemPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

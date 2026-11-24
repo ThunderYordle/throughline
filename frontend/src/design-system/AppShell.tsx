@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Footer } from "../components/Footer";
-import { Badge } from "./Badge";
 import { ButtonLink } from "./Button";
 import { PRIMARY_NAV_ITEMS, resolveNavContext, WORKFLOW_STAGES, type WorkflowStageId } from "./nav";
 import { cx } from "./tokens";
@@ -84,14 +83,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <circle cx="20.5" cy="6.5" r="2.2" fill="#10b981" />
                 </svg>
               </span>
-              <div className="flex items-center gap-2">
-                <span className="font-display text-base font-bold tracking-tight text-ink-primary">
-                  Throughline
-                </span>
-                <span className="hidden rounded-[5px] border border-line bg-surface-raised px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-ink-muted sm:inline-block">
-                  Warroom
-                </span>
-              </div>
+              <span className="font-display text-base font-bold tracking-tight text-ink-primary">
+                Throughline
+              </span>
             </Link>
           </div>
 
@@ -201,14 +195,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               {nav.stage ? (
                 <WorkflowStepper activeStage={nav.stage} />
               ) : (
-                <div className="flex items-center gap-2">
-                  <Badge tone="cyan" mono pill={false}>
-                    DS v1.0
-                  </Badge>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.09em] text-ink-muted">
-                    Empirical Pro Macro Engine
-                  </span>
-                </div>
+                <span className="font-mono text-[10px] uppercase tracking-[0.09em] text-ink-muted">
+                  Empirical Pro Macro Engine
+                </span>
               )}
             </div>
           </div>
