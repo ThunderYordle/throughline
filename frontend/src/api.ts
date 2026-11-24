@@ -1,4 +1,4 @@
-import type { Draft, GameSummary, PlanItem, PlanResponse, Replay, Side } from "./types";
+import type { Draft, EntryState, GameSummary, PlanItem, PlanResponse, Replay, ReviewResponse, Side } from "./types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -28,4 +28,16 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
   planGames: (id: string) => getJson<GameSummary[]>(`/api/plans/${encodeURIComponent(id)}/games`),
+  createReview: (planId: string, gameId: string) =>
+    getJson<ReviewResponse>("/api/reviews", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ plan_id: planId, game_id: gameId }),
+    }),
+  review: (id: string) => getJson<ReviewResponse>(`/api/reviews/${encodeURIComponent(id)}`),
+  setEntry: (id: string, token: string, entryId: string, state: EntryState) =>
+    getJson<{ entries: Record<string, EntryState> }>(
+      `/api/reviews/${encodeURIComponent(id)}/entries/${encodeURIComponent(entryId)}`,
+      { method: "PATCH", headers: { ...JSON_HEADERS, "X-Edit-Token": token }, body: JSON.stringify(state) },
+    ),
 };

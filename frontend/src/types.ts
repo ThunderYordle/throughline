@@ -105,3 +105,46 @@ export interface PlanResponse {
   edit_token?: string;
   game_id?: string;
 }
+
+export type CheckStatus = "followed" | "partly" | "not_followed" | "not_applicable";
+
+export interface ItemCheck {
+  item_id: string;
+  status: CheckStatus;
+  numbers: string;
+  at: number;
+  clip: [number, number];
+}
+
+export interface Moment {
+  id: string;
+  kind: "objective_setup" | "unused_advantage" | "cross_map_trade" | "caught" | "gold_swing";
+  t: number;
+  verdict: "good" | "bad" | "neutral";
+  text: string;
+  impact: number;
+  clip: [number, number];
+}
+
+export interface ReviewBody {
+  plan_id: string;
+  game_id: string;
+  us: Side;
+  teams: Record<Side, string>;
+  checks: ItemCheck[];
+  moments: Moment[];
+  summary: { followed: number; partly: number; not_followed: number; not_applicable: number };
+  gold: [number, number][];
+}
+
+export interface EntryState {
+  status: "confirmed" | "dismissed" | null;
+  note: string;
+}
+
+export interface ReviewResponse {
+  id: string;
+  review: ReviewBody;
+  entries: Record<string, EntryState>;
+  edit_token?: string;
+}

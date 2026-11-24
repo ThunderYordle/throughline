@@ -5,6 +5,7 @@ import { HomePage } from "./pages/HomePage";
 import { PlanFromGamePage } from "./pages/PlanFromGamePage";
 import { PlanPage } from "./pages/PlanPage";
 import { ReplayPage } from "./pages/ReplayPage";
+import { ReviewPage } from "./pages/ReviewPage";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/plan/new" element={<DraftPage />} />
             <Route path="/plan/from-game/:gameId" element={<PlanFromGamePage />} />
             <Route path="/plan/:id" element={<PlanPage />} />
+            <Route path="/review/:id" element={<ReviewPage />} />
           </Routes>
         </div>
         <Footer />

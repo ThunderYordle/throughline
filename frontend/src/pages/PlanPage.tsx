@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { DraftStrip } from "../components/DraftStrip";
 import { PlanItemCard } from "../components/PlanItemCard";
+import { ReviewAGame } from "../components/ReviewAGame";
 import { TempoChart } from "../components/TempoChart";
 import { planToText } from "../lib/exportPlan";
 import { getToken, takeTokenFromHash } from "../lib/tokens";
@@ -11,6 +12,8 @@ import type { PlanItem } from "../types";
 
 export function PlanPage() {
   const { id = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const game = searchParams.get("game");
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState<string | null>(null);
   useEffect(() => takeTokenFromHash("plan", id), [id]);
@@ -81,6 +84,7 @@ export function PlanPage() {
           ))}
         </ul>
       )}
+      <ReviewAGame planId={id} suggestedGameId={game ?? undefined} />
     </main>
   );
 }
