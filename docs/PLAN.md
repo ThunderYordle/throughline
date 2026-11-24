@@ -531,7 +531,7 @@ The facts every task below depends on:
 `Frame` is one observation; frames are irregular, and `GameIndex` (Task 6) interpolates between them.
 Grubs are one `Spawn` and one `Objective` record per grub.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `backend/tests/__init__.py`, `backend/tests/game/__init__.py`: empty (so `tests.grid.feed` and friends import).
 
@@ -615,12 +615,12 @@ def test_needs_five_players() -> None:
         assign_roles([RoleEvidence("a", {}, 1.0, 0, False)])
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `cd backend && uv run pytest tests/game -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'throughline.game'`
 
-- [ ] **Step 3: Implement the model**
+- [x] **Step 3: Implement the model**
 
 `backend/throughline/game/__init__.py`: empty.
 
@@ -781,7 +781,7 @@ class Game:
         return {p.role: p.champion for p in self.participants if p.side == side}
 ```
 
-- [ ] **Step 4: Implement geometry**
+- [x] **Step 4: Implement geometry**
 
 `backend/throughline/game/geometry.py`:
 
@@ -859,7 +859,7 @@ def objective_center(kind: ObjectiveKind, objective: Objective | None = None) ->
     return None
 ```
 
-- [ ] **Step 5: Implement role inference**
+- [x] **Step 5: Implement role inference**
 
 The feed has no roles.
 Each team's five players are matched to the five roles by the assignment with the highest total score: buying World Atlas marks the support, scuttle kills and time off the lanes mark the jungler, and time in each lane between 1:30 and 8:00 marks the laners.
@@ -918,12 +918,12 @@ def assign_roles(team: Sequence[RoleEvidence]) -> dict[str, Role]:
     return {e.player_id: r for e, r in zip(team, best, strict=True)}
 ```
 
-- [ ] **Step 6: Run the tests, lint and types**
+- [x] **Step 6: Run the tests, lint and types**
 
 Run: `cd backend && uv run pytest tests/game -v && uv run ruff check . && uv run ruff format --check . && uv run mypy throughline`
 Expected: 6 passed; clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend
